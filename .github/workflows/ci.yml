@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }}, Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Editor - install
+        working-directory: editor
+        run: npm ci
+      - name: Editor - type-check
+        working-directory: editor
+        run: npx tsc --noEmit
+      - name: Editor - unit tests
+        working-directory: editor
+        run: npx vitest run
+      - name: Editor - build
+        working-directory: editor
+        run: npm run build
+
+      - name: Bridge - install
+        working-directory: editor-mcp
+        run: npm ci
+      - name: Bridge - build
+        working-directory: editor-mcp
+        run: npm run build

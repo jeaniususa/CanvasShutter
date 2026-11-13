@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "canvasshutter": {
+      "command": "node",
+      "args": ["editor-mcp/dist/server.js"]
+    }
+  }
+}

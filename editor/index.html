@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CanvasShutter</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<div id="work">
+<main id="stage">
+  <canvas id="view" hidden></canvas>
+  <div id="empty" hidden>
+    <h1>Drop photos here</h1>
+    <p>Or pick them from your computer. Photos and edits are kept in this browser on this computer; nothing is uploaded.</p>
+    <div class="empty-actions">
+      <button id="open-empty" class="primary">Add photos</button>
+      <button id="sample">Use a test image</button>
+    </div>
+  </div>
+  <div id="badge" hidden>Original</div>
+  <div id="notice" role="status" hidden></div>
+</main>
+<div id="filmstrip" hidden></div>
+</div>
+<aside id="panel">
+  <header class="toolbar">
+    <button id="open" title="Add photos to your library (O)">Add</button>
+    <button id="undo" title="Undo (Cmd/Ctrl+Z)">Undo</button>
+    <button id="redo" title="Redo (Shift+Cmd/Ctrl+Z)">Redo</button>
+    <button id="before" title="Hold to see the original (\)">Original</button>
+  </header>
+  <section>
+    <canvas id="histogram" aria-label="Histogram of the edited photo"></canvas>
+  </section>
+  <details class="section" id="sec-levels" open>
+    <summary><span class="title">Levels</span><button id="reset-levels" class="link">Reset</button></summary>
+    <div class="body">
+      <div id="levels"></div>
+      <p class="hint">Hold Alt/Option while dragging the white or black handle to see only what is clipping. Double-click a handle to reset it.</p>
+    </div>
+  </details>
+  <details class="section" id="sec-light" open>
+    <summary><span class="title">Light</span><button id="reset-light" class="link">Reset</button></summary>
+    <div class="body">
+      <div id="sliders"></div>
+      <p class="hint">Hold Alt/Option while dragging to see only what is clipping. Shift-drag is finer. Double-click resets.</p>
+    </div>
+  </details>
+  <details class="section" id="sec-color" open>
+    <summary><span class="title">Color</span><button id="reset-color" class="link">Reset</button></summary>
+    <div class="body">
+      <div id="color-sliders"></div>
+      <p class="hint">Shift-drag is finer. Double-click resets.</p>
+    </div>
+  </details>
+  <details class="section" id="sec-claude" open>
+    <summary><span class="title">Claude</span><span id="claude-dot" data-state="off" aria-hidden="true"></span></summary>
+    <div class="body">
+      <label class="check"><input type="checkbox" id="claude-toggle"> Let Claude Code control this editor</label>
+      <p class="hint" id="claude-status" role="status"></p>
+      <p class="hint">When on, Claude can read and change the sliders, switch photos and export. To judge an edit it is sent a small preview of the open photo.</p>
+    </div>
+  </details>
+  <details class="section" id="sec-library" open>
+    <summary><span class="title">Library</span></summary>
+    <div class="body">
+      <div class="library-actions">
+        <button id="backup" title="Save a file with every photo's adjustments">Back up edits</button>
+        <button id="restore" title="Apply adjustments from a backup file">Restore edits</button>
+      </div>
+      <p class="hint" id="library-info"></p>
+      <p class="hint warn" id="library-warn" hidden>This browser may clear stored photos and edits after a long break or if its website data is cleared. Back up your edits now and then; with the backup and your original photo files you can get everything back.</p>
+    </div>
+  </details>
+  <footer class="toolbar">
+    <button id="reset-all">Reset all</button>
+    <button id="export-jpg">Export JPEG</button>
+    <button id="export-png" class="primary">Export PNG</button>
+  </footer>
+  <input id="file" type="file" accept="image/*" multiple hidden>
+  <input id="backup-file" type="file" accept="application/json,.json" hidden>
+</aside>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
