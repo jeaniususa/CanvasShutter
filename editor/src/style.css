@@ -113,3 +113,5 @@ button.link.danger { color: #ff8a80; }
   #stage { padding: 12px; }
   #panel { height: auto; border-left: none; border-top: 1px solid var(--line); }
 }
+
+.hint a { color: inherit; text-decoration: underline; }

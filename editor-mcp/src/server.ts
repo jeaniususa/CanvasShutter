@@ -12,7 +12,9 @@ import { Bridge } from './bridge.js';
 const log = (msg: string) => process.stderr.write(`[canvasshutter] ${msg}\n`);
 const port = Number(process.env.EDITOR_BRIDGE_PORT) || 8765;
 const editorUrl = process.env.EDITOR_URL || 'http://localhost:5173';
-const allowedOrigins = [new URL(editorUrl).origin, 'http://127.0.0.1:5173',
+/** The hosted copy on GitHub Pages; its page may connect too, so nobody has to run the editor locally. */
+const hostedUrl = 'https://jeaniususa.github.io/CanvasShutter/';
+const allowedOrigins = [new URL(editorUrl).origin, 'http://127.0.0.1:5173', new URL(hostedUrl).origin,
   ...(process.env.EDITOR_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)];
 
 const bridge = new Bridge({ port, allowedOrigins, editorUrl }, log);
@@ -62,7 +64,7 @@ server.registerTool('editor_status', {
   description: 'Whether an editor tab is connected, which photo is open, its current adjustments, how many photos are in the library, and the list of controls with their ranges. Call this first.',
   annotations: { readOnlyHint: true },
 }, async () => {
-  if (!bridge.connected && !bridge.startError) return text({ connected: false, hint: `Ask the user to open the editor at ${editorUrl} and tick "Let Claude Code control this editor" in its Claude section.` });
+  if (!bridge.connected && !bridge.startError) return text({ connected: false, hint: `Ask the user to open the editor (online at ${hostedUrl}, or their own copy at ${editorUrl}) and tick "Let Claude Code control this editor" in its Claude section.` });
   try { return text({ connected: true, ...(await bridge.call('status') as object) }); } catch (err) { return failure(err); }
 });
 

@@ -15,7 +15,7 @@ Claude Code starts it automatically; the editor tab connects to it when you swit
 
 ## Using it
 1. Build this program once: `cd editor-mcp && npm install && npm run build`
-2. Start the editor: `cd editor && npm run dev`, then open http://localhost:5173
+2. Open the editor: online at https://jeaniususa.github.io/CanvasShutter/ , or your own copy with `cd editor && npm run dev` at http://localhost:5173
 3. In the editor's **Claude** section, tick **Let Claude Code control this editor**.
    The dot turns green when it is connected.
 4. In Claude Code (opened in this project folder), just ask. The first time, Claude Code asks you
@@ -55,7 +55,7 @@ Things to try:
 | Variable | Default | Purpose |
 |---|---|---|
 | `EDITOR_URL` | `http://localhost:5173` | Where the editor is served; also the page allowed to connect |
-| `EDITOR_ORIGINS` | none | Extra allowed page addresses, comma-separated |
+| `EDITOR_ORIGINS` | none | Extra allowed page addresses, comma-separated. The online editor (`https://jeaniususa.github.io`) is always allowed; add your own if you host a copy elsewhere, such as a fork's GitHub Pages address |
 | `EDITOR_BRIDGE_PORT` | `8765` | Local port the editor connects to. If you change it, build or run the editor with `VITE_BRIDGE_PORT` set to the same number |
 
 ## Limits
