@@ -1,4 +1,5 @@
 import type { PhotoMeta } from '../library/db';
+import { isTouchDevice } from './touch';
 
 interface Handlers { onSelect: (id: string) => void; onRemove: (id: string) => void }
 
@@ -29,7 +30,7 @@ export class Filmstrip {
   private clickRemove() {
     if (!this.current) return;
     if (!this.armed) {
-      this.removeBtn.textContent = 'Click again to remove';
+      this.removeBtn.textContent = `${isTouchDevice() ? 'Tap' : 'Click'} again to remove`;
       this.removeBtn.classList.add('danger');
       this.armed = window.setTimeout(() => this.disarm(), 3000);
       return;

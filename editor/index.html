@@ -11,8 +11,8 @@
 <main id="stage">
   <canvas id="view" hidden></canvas>
   <div id="empty" hidden>
-    <h1>Drop photos here</h1>
-    <p>Or pick them from your computer. Photos and edits are kept in this browser on this computer; nothing is uploaded.</p>
+    <h1><span class="for-mouse">Drop photos here</span><span class="for-touch">Add your photos</span></h1>
+    <p><span class="for-mouse">Or pick them from your computer. Photos and edits are kept in this browser on this computer; nothing is uploaded.</span><span class="for-touch">Pick them from this device. Photos and edits are kept in this browser on this device; nothing is uploaded.</span></p>
     <div class="empty-actions">
       <button id="open-empty" class="primary">Add photos</button>
       <button id="sample">Use a test image</button>
@@ -37,21 +37,21 @@
     <summary><span class="title">Levels</span><button id="reset-levels" class="link">Reset</button></summary>
     <div class="body">
       <div id="levels"></div>
-      <p class="hint">Hold Alt/Option while dragging the white or black handle to see only what is clipping. Double-click a handle to reset it.</p>
+      <p class="hint"><span class="for-mouse">Hold Alt/Option while dragging the white or black handle to see only what is clipping. Double-click a handle to reset it.</span><span class="for-touch">Double-tap a handle to reset it.</span></p>
     </div>
   </details>
   <details class="section" id="sec-light" open>
     <summary><span class="title">Light</span><button id="reset-light" class="link">Reset</button></summary>
     <div class="body">
       <div id="sliders"></div>
-      <p class="hint">Hold Alt/Option while dragging to see only what is clipping. Shift-drag is finer. Double-click resets.</p>
+      <p class="hint"><span class="for-mouse">Hold Alt/Option while dragging to see only what is clipping. Shift-drag is finer. Double-click resets.</span><span class="for-touch">Double-tap a slider to reset it. Tap a number to type an exact value.</span></p>
     </div>
   </details>
   <details class="section" id="sec-color" open>
     <summary><span class="title">Color</span><button id="reset-color" class="link">Reset</button></summary>
     <div class="body">
       <div id="color-sliders"></div>
-      <p class="hint">Shift-drag is finer. Double-click resets.</p>
+      <p class="hint"><span class="for-mouse">Shift-drag is finer. Double-click resets.</span><span class="for-touch">Double-tap a slider to reset it.</span></p>
     </div>
   </details>
   <details class="section" id="sec-claude" open>

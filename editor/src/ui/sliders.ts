@@ -1,4 +1,5 @@
 import type { SliderKey, Store } from '../state';
+import { onDoubleTap } from './touch';
 
 export type ClipView = 'high' | 'low';
 export interface Def { key: SliderKey; label: string; min: number; max: number; step: number; keyStep: number; digits: number; clip?: ClipView; /** CSS gradient painted along the rail, left to right. */ ramp?: string }
@@ -21,8 +22,12 @@ export const COLOR: Def[] = [
 
 const fmt = (v: number, d: Def) => (v > 0 ? '+' : '') + v.toFixed(d.digits);
 
+/** How far a finger must move sideways, in pixels, before a touch counts as dragging the slider. */
+const TOUCH_SLOP = 6;
+
 /**
- * Builds one row per slider definition. Drag to adjust, Shift-drag for fine control, double-click to reset.
+ * Builds one row per slider definition. Drag to adjust, Shift-drag for fine control, double-click
+ * (or double-tap) to reset.
  * Holding Alt/Option during a drag asks for the clipping view via `onClip`.
  */
 export function buildSliders(root: HTMLElement, store: Store, defs: Def[], onClip: (view: ClipView | null) => void = () => {}) {
@@ -63,21 +68,34 @@ export function buildSliders(root: HTMLElement, store: Store, defs: Def[], onCli
     };
     updaters.push(update);
 
-    let lastX = 0, exact = 0;
+    let lastX = 0, exact = 0, startX = 0, moving = false;
     track.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       track.setPointerCapture(e.pointerId);
+      startX = lastX = e.clientX;
+      held = d.clip ?? null;
+      if (e.pointerType === 'touch') {
+        // A finger may be starting a scroll of the panel, so nothing changes until it moves sideways,
+        // and the value then follows the finger from where it is instead of jumping to the touch.
+        exact = store.params[d.key];
+        moving = false;
+        return;
+      }
       track.focus();
       const r = track.getBoundingClientRect();
       // Clicking the rail jumps to that spot; grabbing the thumb keeps the current value.
       exact = e.target === thumb ? store.params[d.key] : d.min + ((e.clientX - r.left) / r.width) * (d.max - d.min);
-      lastX = e.clientX;
-      held = d.clip ?? null;
+      moving = true;
       onClip(e.altKey ? held : null);
       set(exact);
     });
     track.addEventListener('pointermove', (e) => {
       if (!track.hasPointerCapture(e.pointerId)) return;
+      if (!moving) {
+        if (Math.abs(e.clientX - startX) < TOUCH_SLOP) return;
+        moving = true;
+        lastX = e.clientX;
+      }
       const r = track.getBoundingClientRect();
       exact += ((e.clientX - lastX) / r.width) * (d.max - d.min) * (e.shiftKey ? 0.2 : 1);
       exact = Math.min(d.max, Math.max(d.min, exact));
@@ -89,6 +107,7 @@ export function buildSliders(root: HTMLElement, store: Store, defs: Def[], onCli
     track.addEventListener('pointerup', end);
     track.addEventListener('pointercancel', end);
     row.addEventListener('dblclick', (e) => { if (e.target !== input) { set(0); store.commit(); } });
+    onDoubleTap(track, () => { set(0); store.commit(); });
     track.addEventListener('keydown', (e) => {
       const dir = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
       if (!dir) return;
