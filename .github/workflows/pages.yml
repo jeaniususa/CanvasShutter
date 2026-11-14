@@ -1,9 +1,11 @@
 name: Publish to GitHub Pages
 
 # Builds the editor and publishes it, so anyone can use it from a link with nothing to install.
+# The site itself always comes from main. While the mobile-layout branch exists, a copy of it is
+# also published under /preview/ for testing on a phone, without touching the site itself.
 on:
   push:
-    branches: [main]
+    branches: [main, mobile-layout]
   workflow_dispatch:
 
 permissions:
@@ -15,6 +17,9 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  PREVIEW_BRANCH: mobile-layout
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -22,22 +27,60 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install
-        working-directory: editor
+
+      # The site: always built from main, whichever branch was pushed.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: live
+      - name: Site - install
+        working-directory: live/editor
         run: npm ci
-      - name: Test
-        working-directory: editor
+      - name: Site - test
+        working-directory: live/editor
         run: npx vitest run
-      - name: Build
-        working-directory: editor
+      - name: Site - build
+        working-directory: live/editor
         run: npm run build
+
+      # The preview: built from the preview branch, if there is one.
+      - name: Look for the preview branch
+        id: preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git ls-remote --exit-code --heads "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$PREVIEW_BRANCH" > /dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.preview.outputs.exists == 'true'
+        with:
+          ref: ${{ env.PREVIEW_BRANCH }}
+          path: preview
+      - name: Preview - install
+        if: steps.preview.outputs.exists == 'true'
+        working-directory: preview/editor
+        run: npm ci
+      - name: Preview - test
+        if: steps.preview.outputs.exists == 'true'
+        working-directory: preview/editor
+        run: npx vitest run
+      - name: Preview - build
+        if: steps.preview.outputs.exists == 'true'
+        working-directory: preview/editor
+        run: npm run build
+      - name: Preview - place under /preview/
+        if: steps.preview.outputs.exists == 'true'
+        run: cp -R preview/editor/dist live/editor/dist/preview
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: editor/dist
+          path: live/editor/dist
       - id: deployment
         uses: actions/deploy-pages@v4
