@@ -1,6 +1,7 @@
 import { drawArea, type Histogram } from '../histogram';
 import { autoLevels, fractionToGamma, gammaToFraction, setBlack, setGamma, setWhite } from '../levels';
 import { CHANNELS, defaultLevels, isDefaultLevels, type Channel, type Levels, type Store } from '../state';
+import { onDoubleTap } from './touch';
 
 type Handle = 'black' | 'mid' | 'white';
 export type LevelsClip = { view: 'high' | 'low'; channel: Channel } | null;
@@ -52,7 +53,9 @@ export class LevelsEditor {
       el.addEventListener('pointermove', (e) => this.onMove(h, e));
       el.addEventListener('pointerup', (e) => this.onUp(h, e));
       el.addEventListener('pointercancel', (e) => this.onUp(h, e));
-      el.addEventListener('dblclick', () => this.edit((l) => { const d = defaultLevels(); if (h === 'mid') l.gamma = d.gamma; else if (h === 'black') setBlack(l, d.black); else setWhite(l, d.white); }));
+      const reset = () => this.edit((l) => { const d = defaultLevels(); if (h === 'mid') l.gamma = d.gamma; else if (h === 'black') setBlack(l, d.black); else setWhite(l, d.white); });
+      el.addEventListener('dblclick', reset);
+      onDoubleTap(el, reset);
       el.addEventListener('keydown', (e) => this.onKey(h, e));
 
       const input = document.createElement('input');

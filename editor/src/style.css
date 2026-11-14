@@ -107,11 +107,80 @@ button.link.danger { color: #ff8a80; }
 .menu button:hover:not(:disabled) { background: #3a3a42; }
 .menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 0; }
 
-@media (max-width: 760px) {
-  body { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; overflow: auto; }
-  #work { height: 55vh; }
-  #stage { padding: 12px; }
-  #panel { height: auto; border-left: none; border-top: 1px solid var(--line); }
+.hint a { color: inherit; text-decoration: underline; }
+
+/* Wording that differs between mouse and touch: the mouse version shows unless the main pointer is a finger. */
+.for-touch { display: none; }
+
+/*
+ * Touch screens (phones and tablets). Everything from here down applies only to them or to narrow
+ * windows, so the desktop layout above is not affected.
+ */
+@media (pointer: coarse) {
+  :root { font-size: 15px; }
+  .for-mouse { display: none; }
+  .for-touch { display: inline; }
+  /* The browser's bars cover part of 100vh on phones; dvh is the part that is really visible. */
+  #work, #panel { height: 100dvh; }
+  body { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+
+  button { min-height: 40px; padding: 8px 10px; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+  #before { touch-action: none; } /* held down to compare, so a small finger movement must not scroll */
+  button.link { min-height: 0; }
+  summary button.link { padding: 10px 6px; margin: -10px -6px; } /* a bigger target, same position */
+  .film-bar button.link { padding: 8px 0 8px 12px; }
+  details.section > summary { padding: 14px; font-size: 13px; }
+  .hint { font-size: 12.5px; }
+  .film-bar { font-size: 13px; min-height: 36px; } /* room for the Remove button, so the bar does not grow when it appears */
+  .check { min-height: 40px; }
+  .check input { width: 20px; height: 20px; }
+  /* iPhones zoom the page when a box with text smaller than 16px is tapped. */
+  .slider-value, .levels-value, .levels-top select { font-size: 16px; }
+  .levels-top select { min-height: 40px; }
+  .levels-value { width: 68px; padding: 6px; }
+
+  /* Sliders: a taller row and a bigger thumb. Swiping up or down over a slider still scrolls the panel. */
+  .slider-row { grid-template-columns: 84px 1fr 62px; height: 44px; }
+  .slider-track { height: 44px; margin: 0 12px; touch-action: pan-y; -webkit-tap-highlight-color: transparent; }
+  .slider-rail, .slider-fill { top: 21px; }
+  .ramped .slider-rail { top: 20px; }
+  .slider-thumb { top: 10px; width: 24px; height: 24px; margin-left: -12px; }
+
+  /* Levels handles: the triangle grows a little and the area that responds to a finger grows a lot. */
+  .levels-strip { height: 34px; }
+  .levels-handle { top: 0; width: 44px; height: 34px; margin-left: -22px; -webkit-tap-highlight-color: transparent; }
+  .levels-handle::before { inset: 1px 11px 13px; }
+  .levels-handle::after { inset: 5px 15.5px 15px; }
 }
 
-.hint a { color: inherit; text-decoration: underline; }
+/* Narrow windows and phones held upright: the photo stays in view on top, the controls scroll underneath. */
+@media (max-width: 760px) {
+  body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); height: 100vh; height: 100dvh; }
+  #work { height: 46vh; height: 46dvh; }
+  #stage { padding: 12px; }
+  #panel { height: auto; min-height: 0; border-left: none; border-top: 1px solid var(--line); overscroll-behavior: contain; }
+  #panel > header.toolbar { position: sticky; top: 0; z-index: 2; background: var(--panel); }
+  #histogram { height: 56px; }
+  #badge { top: 20px; left: 20px; }
+  #notice { left: 50%; bottom: 16px; width: max-content; max-width: calc(100vw - 32px); }
+  .film-bar { padding-top: 2px; }
+  .film-list { padding: 4px 12px 8px; }
+  .film-item { height: 48px; min-width: 34px; }
+  .film-item img { height: 44px; width: auto; }
+}
+
+/* Phones held sideways: too short to stack, so the controls stay beside the photo in a slimmer column. */
+@media (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
+  body { grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: none; height: 100dvh; }
+  #work { height: 100dvh; }
+  #stage { padding: 8px; }
+  #panel { height: 100dvh; border-top: none; border-left: 1px solid var(--line); }
+  #histogram { height: 48px; }
+  /* One row: thumbnails on the left, the Remove button on the right. */
+  #filmstrip:not([hidden]) { display: flex; flex-direction: row-reverse; align-items: center; }
+  .film-bar { flex: none; padding: 0 10px 0 0; }
+  .film-info { display: none; }
+  .film-list { flex: 1; min-width: 0; padding: 4px 8px 6px; }
+  .film-item { height: 40px; min-width: 30px; }
+  .film-item img { height: 36px; width: auto; }
+}

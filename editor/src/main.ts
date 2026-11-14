@@ -6,6 +6,7 @@ import { CHANNELS, Store, defaultLevels, defaults, normalizeParams } from './sta
 import { Filmstrip } from './ui/filmstrip';
 import { LevelsEditor, type LevelsClip } from './ui/levels';
 import { COLOR, LIGHT, buildSliders, type ClipView } from './ui/sliders';
+import { isTouchDevice } from './ui/touch';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const stage = $('stage'), view = $<HTMLCanvasElement>('view'), empty = $('empty'), badge = $('badge'), notice = $('notice');
@@ -74,11 +75,15 @@ function drawHistogram() {
   g.globalCompositeOperation = 'source-over';
 }
 
-/** Sizes the photo to fit the window as it is right now. Called once per photo, so later window resizes leave it alone. */
+/**
+ * Sizes the photo to fit the window as it is right now. Called once per photo, so later window
+ * resizes leave it alone; the exception is a phone or tablet being turned (see below).
+ */
 function fitPreview() {
-  if (!pipeline) return;
+  if (!pipeline?.imageWidth) return;
   const r = stage.getBoundingClientRect();
-  const fit = Math.min(1, (r.width - 40) / pipeline.imageWidth, (r.height - 40) / pipeline.imageHeight);
+  const pad = 2 * parseFloat(getComputedStyle(stage).paddingLeft); // 40 on desktop, less on small screens
+  const fit = Math.min(1, (r.width - pad) / pipeline.imageWidth, (r.height - pad) / pipeline.imageHeight);
   const w = Math.max(1, Math.round(pipeline.imageWidth * fit)), h = Math.max(1, Math.round(pipeline.imageHeight * fit));
   view.style.width = `${w}px`; view.style.height = `${h}px`;
   pipeline.setPreviewSize(Math.max(w, h) * (devicePixelRatio || 1));
@@ -348,6 +353,8 @@ store.subscribe(() => {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { stashUnsaved(); void saveNow(); } });
 addEventListener('pagehide', () => { stashUnsaved(); void saveNow(); });
 addEventListener('resize', schedule); // redraws the histogram; the photo keeps its size
+// Turning a phone or tablet swaps the layout, so there the photo is fitted again.
+matchMedia('(orientation: portrait)').addEventListener('change', () => { if (isTouchDevice()) { fitPreview(); schedule(); } });
 
 $('open').addEventListener('click', () => fileInput.click());
 $('open-empty').addEventListener('click', () => fileInput.click());
