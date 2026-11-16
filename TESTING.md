@@ -48,7 +48,7 @@ Best tested on the published site (https://jeaniususa.github.io/CanvasShutter/) 
 ## Claude Code bridge (advanced; needs Claude Code)
 1. In `editor-mcp/`: `npm install`, then `npm run build`.
 2. Open Claude Code in the project's top folder and approve the `canvasshutter` server.
-3. In the editor's **AI assistant** section, open **Advanced: use Claude Code instead** and tick
+3. In the editor, click **Ask AI**, then at the bottom of the chat open **Advanced: use Claude Code instead** and tick
    **Let Claude Code control this editor**.
 
 - [ ] The dot next to "Advanced: use Claude Code instead" turns green.

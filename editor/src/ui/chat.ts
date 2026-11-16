@@ -38,10 +38,8 @@ export function setupChat(commands: CommandRunner) {
     newBtn.hidden = !connection || !log.childElementCount;
     ideas.hidden = !!log.childElementCount;
     sendBtn.textContent = running ? 'Stop' : 'Send';
-    $('ai-dot').dataset.state = connection ? 'connected' : 'off';
-    $('ai-status').textContent = connection
-      ? `Connected to ${name}. Open the chat and ask for an edit.`
-      : 'Ask for edits in plain language. Connect your own AI account to start.';
+    launcher.dataset.state = connection ? 'connected' : 'off';
+    launcher.title = connection ? `Ask the AI assistant to edit for you (connected to ${name})` : 'Ask the AI assistant to edit for you';
     $('chat-account').textContent = connection
       ? `Connected to ${name} ${connection.remembered ? 'on this device' : 'until this tab closes'}. You pay ${name} for what you use.`
       : '';
@@ -183,7 +181,6 @@ export function setupChat(commands: CommandRunner) {
   }
 
   launcher.addEventListener('click', open);
-  $('ai-open-panel').addEventListener('click', open);
   $('chat-close').addEventListener('click', close);
   newBtn.addEventListener('click', newChat);
   $('chat-disconnect').addEventListener('click', () => disconnect());

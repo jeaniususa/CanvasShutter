@@ -55,19 +55,6 @@
       <p class="hint"><span class="for-mouse">Shift-drag is finer. Double-click resets.</span><span class="for-touch">Double-tap a slider to reset it.</span></p>
     </div>
   </details>
-  <details class="section" id="sec-ai" open>
-    <summary><span class="title">AI assistant</span><span id="ai-dot" class="dot" data-state="off" aria-hidden="true"></span></summary>
-    <div class="body">
-      <p class="hint first" id="ai-status" role="status"></p>
-      <button id="ai-open-panel">Open the AI chat</button>
-      <details class="sub" id="sub-claude-code">
-        <summary>Advanced: use Claude Code instead <span id="claude-dot" class="dot" data-state="off" aria-hidden="true"></span></summary>
-        <label class="check"><input type="checkbox" id="claude-toggle"> Let Claude Code control this editor</label>
-        <p class="hint" id="claude-status" role="status"></p>
-        <p class="hint">For people who already use Claude Code on this computer and would rather use their Claude subscription. It needs a one-time setup. <a href="https://github.com/jeaniususa/CanvasShutter#advanced-use-claude-code-instead" target="_blank" rel="noopener">How to set it up</a></p>
-      </details>
-    </div>
-  </details>
   <details class="section" id="sec-library" open>
     <summary><span class="title">Library</span></summary>
     <div class="body">
@@ -130,6 +117,12 @@
     </div>
     <p class="hint chat-foot"><span id="chat-account"></span> <button id="chat-disconnect" class="link">Disconnect</button></p>
   </div>
+  <details class="sub" id="sub-claude-code">
+    <summary>Advanced: use Claude Code instead <span id="claude-dot" class="dot" data-state="off" aria-hidden="true"></span></summary>
+    <label class="check"><input type="checkbox" id="claude-toggle"> Let Claude Code control this editor</label>
+    <p class="hint" id="claude-status" role="status"></p>
+    <p class="hint">For people who already use Claude Code on this computer and would rather use their Claude subscription. It needs a one-time setup. <a href="https://github.com/jeaniususa/CanvasShutter#advanced-use-claude-code-instead" target="_blank" rel="noopener">How to set it up</a></p>
+  </details>
 </div>
 <script type="module" src="/src/main.ts"></script>
 </body>

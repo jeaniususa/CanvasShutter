@@ -71,7 +71,7 @@ runs on your own computer, so it needs a little setup once:
 4. Open Claude Code in the project folder (not inside `editor-mcp`). It reads `.mcp.json` and asks
    you to approve the `canvasshutter` server.
 5. Open the editor ([online](https://jeaniususa.github.io/CanvasShutter/) or your own copy, below).
-   In its **AI assistant** section, open **Advanced: use Claude Code instead** and tick
+   Click **Ask AI**, then at the bottom of the chat open **Advanced: use Claude Code instead** and tick
    **Let Claude Code control this editor**. The dot turns green when Claude Code is connected.
 
 **Browsers:** with the online editor, Chrome and Edge may ask once whether the page may connect to
