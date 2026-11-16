@@ -13,6 +13,18 @@ export async function decode(file: Blob): Promise<ImageBitmap> {
   }
 }
 
+/**
+ * A random id for a new photo. Browsers only offer crypto.randomUUID on https pages (and localhost),
+ * so on a plain http address, such as a phone opening a preview over Wi-Fi, one is made by hand.
+ */
+export function newId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80; // the same shape as a randomUUID id
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 /** Draws any image source into a small JPEG. */
 export async function makeThumb(source: CanvasImageSource, width: number, height: number): Promise<Blob> {
   const s = Math.min(1, THUMB_SIZE / Math.max(width, height));
@@ -59,7 +71,7 @@ export class Library {
       try {
         bmp = await decode(f);
         const meta: PhotoMeta = {
-          id: crypto.randomUUID(), name: f.name, size: f.size, type: f.type, order: ++order,
+          id: newId(), name: f.name, size: f.size, type: f.type, order: ++order,
           width: bmp.width, height: bmp.height, params: normalizeParams(null), edited: false,
           thumb: await makeThumb(bmp, bmp.width, bmp.height),
         };
