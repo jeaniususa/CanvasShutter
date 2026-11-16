@@ -1,11 +1,13 @@
 import { Pipeline } from './gl/pipeline';
 import { drawArea, measure } from './histogram';
 import { Library, decode, makeThumb } from './library/library';
+import { EditorCommands } from './commands';
 import { Remote, type LinkState } from './remote';
 import { CHANNELS, Store, defaultLevels, defaults, normalizeParams } from './state';
 import { Filmstrip } from './ui/filmstrip';
 import { LevelsEditor, type LevelsClip } from './ui/levels';
 import { COLOR, LIGHT, buildSliders, type ClipView } from './ui/sliders';
+import { setupChat } from './ui/chat';
 import { isTouchDevice } from './ui/touch';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -319,21 +321,27 @@ function editedHistogram() {
   return h;
 }
 
-// Link to the local Claude bridge. Off until the user switches it on in the Claude section.
+// What an assistant may do in this editor. Shared by the built-in AI chat and the Claude Code bridge.
+const commands = new EditorCommands({
+  store, library, currentId: () => currentId, showPhoto, saveNow, preview: previewJpeg, histogram: editedHistogram,
+  exportPhoto: (f) => exportFile(f === 'jpeg' ? 'image/jpeg' : 'image/png'),
+});
+
+// The AI chat built into the editor. Nothing is sent anywhere until the user connects an AI account and asks.
+setupChat(commands);
+
+// Link to the local Claude Code bridge (the advanced option). Off until the user switches it on.
 const linkText: Record<LinkState, string> = {
-  off: 'Off. Claude cannot see or change anything here.',
+  off: 'Off. Claude Code cannot see or change anything here.',
   waiting: 'Waiting for Claude Code… (the bridge starts when Claude Code loads this project)',
-  connected: 'Connected. Claude can read and change this editor.',
+  connected: 'Connected. Claude Code can read and change this editor.',
 };
-const remote = new Remote(
-  { store, library, currentId: () => currentId, showPhoto, saveNow, preview: previewJpeg, histogram: editedHistogram,
-    exportPhoto: (f) => exportFile(f === 'jpeg' ? 'image/jpeg' : 'image/png') },
-  (state) => { $('claude-status').textContent = linkText[state]; $('claude-dot').dataset.state = state; },
-);
+const remote = new Remote(commands, (state) => { $('claude-status').textContent = linkText[state]; $('claude-dot').dataset.state = state; });
 const claudeToggle = $<HTMLInputElement>('claude-toggle');
 let claudeOn = false;
 try { claudeOn = localStorage.getItem('claude.enabled') === '1'; } catch { /* ignore */ }
 claudeToggle.checked = claudeOn;
+if (claudeOn) $<HTMLDetailsElement>('sub-claude-code').open = true; // keep a link that is switched on in plain sight
 remote.setEnabled(claudeOn);
 claudeToggle.addEventListener('change', () => {
   try { localStorage.setItem('claude.enabled', claudeToggle.checked ? '1' : '0'); } catch { /* ignore */ }

@@ -1,4 +1,8 @@
-# CanvasShutter: Claude bridge
+# CanvasShutter: Claude Code bridge
+
+The advanced way to add AI to the editor. Most people will want the AI chat built into the editor
+instead (see the main [README](../README.md#add-ai-optional)): it needs nothing installed. Use this
+bridge if you already work in Claude Code and would rather use your Claude subscription.
 
 Lets you tell the photo editor what to do in plain language from Claude Code, for example
 "warm this up a little and lift the shadows" or "give all of these the same look".
@@ -16,7 +20,8 @@ Claude Code starts it automatically; the editor tab connects to it when you swit
 ## Using it
 1. Build this program once: `cd editor-mcp && npm install && npm run build`
 2. Open the editor: online at https://jeaniususa.github.io/CanvasShutter/ , or your own copy with `cd editor && npm run dev` at http://localhost:5173
-3. In the editor's **Claude** section, tick **Let Claude Code control this editor**.
+3. In the editor's **AI assistant** section, open **Advanced: use Claude Code instead** and tick
+   **Let Claude Code control this editor**.
    The dot turns green when it is connected.
 4. In Claude Code (opened in this project folder), just ask. The first time, Claude Code asks you
    to approve the `canvasshutter` server.

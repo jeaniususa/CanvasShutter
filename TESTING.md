@@ -22,12 +22,36 @@ only a person in front of a browser can confirm. It takes about ten minutes.
 - [ ] **Back up edits** saves a `.json` file. Reset a photo, then **Restore edits** brings it back.
 - [ ] **Remove photo** asks for a second click, then removes only that photo.
 
-## Claude bridge (needs Claude Code)
+## AI assistant (needs an OpenRouter or Anthropic account with a little credit)
+Best tested on the published site (https://jeaniususa.github.io/CanvasShutter/) or with
+`npm run build` and `npx vite preview`, because the security rules are only added to the built page.
+
+- [ ] An **Ask AI** button sits at the top right of the photo. Click it: the chat opens.
+- [ ] **Sign in with OpenRouter** goes to OpenRouter, asks you to approve, and comes back to the
+      editor with the chat open and connected. The address bar no longer shows `?code=`.
+- [ ] Disconnect, then paste an OpenRouter key and click **Connect**. It connects.
+- [ ] Disconnect, then paste an Anthropic key (`sk-ant-…`). The provider menu switches to
+      Anthropic by itself, and it connects.
+- [ ] Paste a made-up key. A clear message says the key was not accepted.
+- [ ] With a photo open, ask "What would you change?". The assistant looks at the photo and answers.
+- [ ] Ask "Make it black and white". The Saturation slider moves and the photo changes. Undo
+      brings the colour back.
+- [ ] While it is working, the Send button says **Stop**, and pressing it stops the request.
+- [ ] Pick another model in the menu at the top of the chat. A note says it starts fresh.
+- [ ] Reload the page. Without **Stay connected on this device** you need to connect again; with
+      it ticked you stay connected.
+- [ ] Typing in the chat does not trigger the editor's shortcuts (typing "o" does not open the
+      file picker).
+- [ ] **On a phone:** the chat covers the controls but not the photo. When the keyboard opens, the
+      chat moves above it and the message box stays visible.
+
+## Claude Code bridge (advanced; needs Claude Code)
 1. In `editor-mcp/`: `npm install`, then `npm run build`.
 2. Open Claude Code in the project's top folder and approve the `canvasshutter` server.
-3. In the editor's Claude section, tick **Let Claude Code control this editor**.
+3. In the editor, click **Ask AI**, then at the bottom of the chat open **Advanced: use Claude Code instead** and tick
+   **Let Claude Code control this editor**.
 
-- [ ] The dot next to "Claude" turns green.
+- [ ] The dot next to "Advanced: use Claude Code instead" turns green.
 - [ ] Ask Claude: "What photo is open and what are its settings?" It answers correctly.
 - [ ] Ask: "Make this photo black and white." The Saturation slider moves and the photo changes.
 - [ ] Ask: "Undo that." The photo returns to colour.

@@ -1,7 +1,7 @@
 # CanvasShutter
 
-A photo editor that runs in your browser, with an optional bridge that lets you direct it in plain
-language from Claude Code.
+A photo editor that runs in your browser, with an optional AI assistant you can direct in plain
+language.
 
 ### [Open CanvasShutter](https://jeaniususa.github.io/CanvasShutter/)
 
@@ -22,11 +22,42 @@ browser; nothing is uploaded to a server.
 - **Backup** of all adjustments to one small file, and restore from it.
 - **Export** to PNG or JPEG at full size.
 - **Undo and redo**, a hold-to-compare original view, and live histograms.
-- **Claude bridge**: ask for edits in plain language from Claude Code (optional, off by default).
+- **AI assistant**: ask for edits in plain language, using your own AI account (optional, off until you connect one).
 
-## Add Claude (optional)
+## Add AI (optional)
 Ask for edits in plain language, such as "make this black and white" or "give the other photos the
-same look". This part runs on your own computer, so it needs a little setup once:
+same look". The assistant is built into the editor. It works in any browser, on a computer or a
+phone, and there is nothing to install. You connect your own AI account, and you pay that provider
+for what you use.
+
+1. Open the editor and click **Ask AI**.
+2. Connect an account, one of two ways:
+   - **Sign in with OpenRouter.** [OpenRouter](https://openrouter.ai) gives you Claude and other AI
+     models on one pay-as-you-go account. You approve the editor on OpenRouter's own page, where
+     you can also set a spending limit, and you are sent back ready to go.
+   - **Paste an API key** from [OpenRouter](https://openrouter.ai/keys) or
+     [Anthropic](https://platform.claude.com) (Claude).
+3. Ask for what you want. The photo changes as the assistant works, and every change can be undone.
+
+Things to try:
+
+- "Look at the open photo and tell me what you'd change."
+- "Make this black and white."
+- "Too much. Undo that and go half as far."
+- "Give the other photos the same look."
+
+**Good to know about cost:** a Claude subscription (Pro or Max) does not include this kind of use;
+it needs API credit with OpenRouter or Anthropic. Each request costs a small amount, mostly for the
+times the assistant looks at your photo. You can pick a cheaper or a stronger model at the top of
+the chat.
+
+**Your key:** it is kept in your browser only and is forgotten when you close the tab, unless you
+tick **Stay connected on this device**. **Disconnect** removes it. See [Privacy](#privacy).
+
+### Advanced: use Claude Code instead
+If you already use [Claude Code](https://claude.com/claude-code) and would rather use your Claude
+subscription, the editor can also be driven from Claude Code through a small bridge program. This
+runs on your own computer, so it needs a little setup once:
 
 1. Install [Node.js](https://nodejs.org) 22.12 or newer and
    [Claude Code](https://claude.com/claude-code).
@@ -39,15 +70,9 @@ same look". This part runs on your own computer, so it needs a little setup once
    ```
 4. Open Claude Code in the project folder (not inside `editor-mcp`). It reads `.mcp.json` and asks
    you to approve the `canvasshutter` server.
-5. Open the editor ([online](https://jeaniususa.github.io/CanvasShutter/) or your own copy, below)
-   and tick **Let Claude Code control this editor** in its Claude section. The dot turns on when
-   Claude is connected.
-
-Then ask things like:
-
-- "Look at the open photo and tell me what you'd change."
-- "Make this black and white."
-- "Give the other photos the same look."
+5. Open the editor ([online](https://jeaniususa.github.io/CanvasShutter/) or your own copy, below).
+   Click **Ask AI**, then at the bottom of the chat open **Advanced: use Claude Code instead** and tick
+   **Let Claude Code control this editor**. The dot turns green when Claude Code is connected.
 
 **Browsers:** with the online editor, Chrome and Edge may ask once whether the page may connect to
 apps on this computer; choose Allow. Firefox works as is. If the dot never turns on in your
@@ -73,19 +98,35 @@ Every push to `main` rebuilds the online editor through GitHub Actions
 (`.github/workflows/pages.yml`).
 
 ## Privacy
-- Photos and adjustments are stored in your browser on your own computer.
-- The Claude bridge is off until you switch it on. When Claude is asked to look at a photo, a small
-  preview (about 1000 pixels wide) is sent to Anthropic as part of your conversation.
-- Original photos are never modified. Edits are settings applied on top.
+- Photos and adjustments are stored in your browser on your own device. Original photos are never
+  modified; edits are settings applied on top.
+- CanvasShutter has no server. Its makers never receive your photos, your chat or your AI key.
+- The AI assistant is off until you connect an account. When it needs to look at a photo, a small
+  preview (about 1000 pixels wide) goes straight from your browser to the AI provider you connected
+  (OpenRouter, which passes it to the model you picked, or Anthropic), together with your messages,
+  file names and slider settings. That provider's privacy policy applies to it.
+- Your AI key stays in your browser. By default it is forgotten when the tab closes. If you choose
+  to stay connected, it is kept in this browser on this device, where anyone who uses the same
+  browser could use it, and so could a browser extension you have given access to the page.
+  A key with a spending limit keeps any damage small, and **Disconnect** removes it.
+- The published editor only loads its own code, and its page is only allowed to contact
+  OpenRouter, Anthropic and the Claude Code bridge on your own computer.
+- The Claude Code bridge is off until you switch it on. It sends the same small preview to
+  Anthropic as part of your Claude Code conversation.
+
+If you publish your own copy: every page under one `github.io` address shares the same browser
+storage, so another project of yours at that address could read a saved key. A custom domain for
+the editor avoids that.
 
 ## Good to know
 - The editor needs WebGL2, which every current browser has. Very old browsers will show a message instead.
-- The Claude bridge needs Claude Code and Node.js on the same computer as the browser. Editing alone needs neither.
+- The AI assistant needs an internet connection and credit with your AI provider. Editing alone needs neither.
+- The Claude Code bridge needs Claude Code and Node.js on the same computer as the browser.
 - Clearing the browser's website data erases the library. Safari can also clear a site's data by
   itself after about a week without a visit. Use **Back up edits** now and then; with the backup
   file and your original photos you can rebuild everything.
 - Files your browser cannot display are skipped and named in a notice. HEIC photos open in Safari but not in Chrome or Firefox.
-- The bridge works with one Claude Code window at a time.
+- The Claude Code bridge works with one Claude Code window at a time.
 
 ## Tests
 ```

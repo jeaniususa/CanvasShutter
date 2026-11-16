@@ -77,7 +77,7 @@ export class Bridge {
     const editor = this.editor;
     if (!editor) {
       return Promise.reject(new Error(
-        `No editor tab is connected. Ask the user to open the editor at ${this.opts.editorUrl} and tick "Let Claude Code control this editor" in its Claude section.`));
+        `No editor tab is connected. Ask the user to open the editor at ${this.opts.editorUrl} and tick "Let Claude Code control this editor" in its AI assistant section, under "Advanced: use Claude Code instead".`));
     }
     return new Promise((resolve, reject) => {
       const id = this.nextId++;
