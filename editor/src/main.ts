@@ -50,7 +50,7 @@ function schedule() {
 function draw() {
   $<HTMLButtonElement>('undo').disabled = !store.canUndo;
   $<HTMLButtonElement>('redo').disabled = !store.canRedo;
-  if (!pipeline || !pipeline.imageWidth) return;
+  if (!pipeline || !pipeline.imageWidth || view.hidden) return; // no photo on screen: the histogram stays blank
   pipeline.render(store.params, 'full');
   drawHistogram();
   if (showOriginal) pipeline.render(store.params, 'original');
