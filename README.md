@@ -21,7 +21,7 @@ browser; nothing is uploaded to a server.
   in the browser. A filmstrip switches between them.
 - **Backup** of all adjustments to one small file, and restore from it.
 - **Export** to PNG or JPEG at full size.
-- **Undo and redo**, a hold-to-compare original view, and live histograms.
+- **Undo and redo**, a hold-to-compare original view, and a live red, green and blue histogram in Levels.
 - **Zoom in on the photo** with Cmd/Ctrl + and − (Cmd/Ctrl 0 fits it again), a trackpad pinch,
   or the space bar, which steps from fit to window, to fill the window, to 100%.
   Only the photo is magnified; the rest of the editor stays the same size.

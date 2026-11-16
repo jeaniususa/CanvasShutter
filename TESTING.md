@@ -10,6 +10,8 @@ only a person in front of a browser can confirm. It takes about ten minutes.
 ## Editor
 - [ ] Drop several photos onto the page. Thumbnails appear in the strip along the bottom.
 - [ ] Click a thumbnail. The photo opens the right way up.
+- [ ] **On a phone held upright:** the photo takes about two thirds of the screen and the
+      thumbnails sit at the top of the controls. Turned sideways, they go back beside the photo.
 - [ ] **Levels**: drag the black, grey and white handles. The photo changes as you drag.
 - [ ] Hold Option (Alt on Windows) while dragging the white handle: the photo turns black except
       where it clips. Same key on the black handle: the photo turns white except where it clips.

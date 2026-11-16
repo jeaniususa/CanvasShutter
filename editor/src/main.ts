@@ -1,5 +1,5 @@
 import { Pipeline } from './gl/pipeline';
-import { drawArea, measure } from './histogram';
+import { measure } from './histogram';
 import { Library, decode, makeThumb } from './library/library';
 import { EditorCommands } from './commands';
 import { Remote, type LinkState } from './remote';
@@ -12,7 +12,7 @@ import { isTouchDevice } from './ui/touch';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const stage = $('stage'), view = $<HTMLCanvasElement>('view'), empty = $('empty'), badge = $('badge'), notice = $('notice');
-const histCanvas = $<HTMLCanvasElement>('histogram'), fileInput = $<HTMLInputElement>('file');
+const fileInput = $<HTMLInputElement>('file');
 
 const store = new Store();
 let levelsClip: LevelsClip = null;
@@ -63,18 +63,9 @@ function draw() {
   badge.hidden = !showOriginal && !clipping;
 }
 
+/** The histogram in Levels follows the photo as it is edited. */
 function drawHistogram() {
-  const r = histCanvas.getBoundingClientRect(), dpr = devicePixelRatio || 1;
-  histCanvas.width = Math.round(r.width * dpr); histCanvas.height = Math.round(r.height * dpr);
-  const g = histCanvas.getContext('2d')!;
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.clearRect(0, 0, r.width, r.height);
-  const h = measure(view);
-  g.globalCompositeOperation = 'lighter';
-  drawArea(g, h.r, 0, 4, r.width, r.height - 4, 'rgba(255,80,70,0.75)');
-  drawArea(g, h.g, 0, 4, r.width, r.height - 4, 'rgba(70,200,100,0.75)');
-  drawArea(g, h.b, 0, 4, r.width, r.height - 4, 'rgba(80,130,255,0.75)');
-  g.globalCompositeOperation = 'source-over';
+  levelsEditor.setLiveHistogram(measure(view));
 }
 
 /**
@@ -182,7 +173,7 @@ function display(source: ImageBitmap, name: string): boolean {
   empty.hidden = true; view.hidden = false;
   fitPreview();
   pipeline.render(defaults(), 'original');
-  levelsEditor.setHistogram(measure(view)); // the levels histogram shows the unedited photo
+  levelsEditor.setHistogram(measure(view)); // the unedited photo, for the Auto button
   if (pipeline.downscaled) say(`This photo is larger than your graphics card allows, so it was scaled down to ${pipeline.imageWidth} × ${pipeline.imageHeight}.`, 9000);
   return true;
 }
@@ -440,7 +431,26 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 addEventListener('pagehide', () => { stashUnsaved(); void saveNow(); });
 addEventListener('resize', schedule); // redraws the histogram; the photo keeps its size
 // Turning a phone or tablet swaps the layout, so there the photo is fitted again.
-matchMedia('(orientation: portrait)').addEventListener('change', () => { if (isTouchDevice()) { fitPreview(); schedule(); } });
+matchMedia('(orientation: portrait)').addEventListener('change', () => { placeFilmstrip(); if (isTouchDevice()) { fitPreview(); schedule(); } });
+
+/*
+ * On a phone held upright (or a narrow window) the thumbnails sit at the top of the controls, so the
+ * photo gets more of the screen. Everywhere else they stay under the photo. The strip is moved, not
+ * copied, so it keeps working as before.
+ */
+const narrow = matchMedia('(max-width: 760px)');
+const sideways = matchMedia('(max-height: 500px) and (orientation: landscape) and (pointer: coarse)');
+function placeFilmstrip() {
+  const strip = $('filmstrip'), panel = $('panel'), work = $('work');
+  const inPanel = narrow.matches && !sideways.matches;
+  if (inPanel && strip.parentElement !== panel) panel.querySelector('header.toolbar')!.after(strip);
+  else if (!inPanel && strip.parentElement !== work) work.insertBefore(strip, $('ai-open'));
+  else return;
+  if (isTouchDevice()) { fitPreview(); schedule(); } // the photo's area changed size
+}
+placeFilmstrip();
+narrow.addEventListener('change', placeFilmstrip);
+sideways.addEventListener('change', placeFilmstrip);
 
 $('open').addEventListener('click', () => fileInput.click());
 $('open-empty').addEventListener('click', () => fileInput.click());
