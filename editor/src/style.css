@@ -46,7 +46,6 @@ button.link:hover { color: var(--text); }
 .toolbar button { flex: 1; }
 footer.toolbar { margin-top: auto; border-bottom: none; border-top: 1px solid var(--line); }
 
-#histogram { display: block; width: 100%; height: 84px; background: #131316; border-radius: 6px; }
 
 #filmstrip { flex: none; background: var(--panel); border-top: 1px solid var(--line); }
 #filmstrip[hidden] { display: none; }
@@ -226,7 +225,6 @@ details.sub li + li { margin-top: 5px; }
   #panel > #filmstrip { border-top: none; border-bottom: 1px solid var(--line); }
   #panel { height: auto; min-height: 0; border-left: none; border-top: 1px solid var(--line); overscroll-behavior: contain; }
   #panel > header.toolbar { position: sticky; top: 0; z-index: 2; background: var(--panel); }
-  #histogram { height: 56px; }
   #badge { top: 20px; left: 20px; }
   #notice { left: 50%; bottom: 16px; width: max-content; max-width: calc(100vw - 32px); }
   .film-bar { padding-top: 2px; }
@@ -247,7 +245,6 @@ details.sub li + li { margin-top: 5px; }
   #work { height: 100dvh; }
   #stage { padding: 8px; }
   #panel { height: 100dvh; border-top: none; border-left: 1px solid var(--line); }
-  #histogram { height: 48px; }
   /* One row: thumbnails on the left, the Remove button on the right. */
   #filmstrip:not([hidden]) { display: flex; flex-direction: row-reverse; align-items: center; }
   .film-bar { flex: none; padding: 0 10px 0 0; }

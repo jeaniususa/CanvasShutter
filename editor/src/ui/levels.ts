@@ -12,13 +12,14 @@ const FILL: Record<Channel, string> = { rgb: '#c9c9cf', r: '#ff6b61', g: '#5fd27
 const LABEL: Record<Handle, string> = { black: 'Black point', mid: 'Midtones', white: 'White point' };
 
 /**
- * Levels control: a histogram of the original photo with black point, midtone and white point
+ * Levels control: a live red, green and blue histogram of the edited photo, with black point, midtone and white point
  * handles underneath. Holding Alt/Option while dragging the white or black handle asks for the
  * clipping view through `onClip`.
  */
 export class LevelsEditor {
   channel: Channel = 'rgb';
-  private hist: Histogram | null = null;
+  private hist: Histogram | null = null; // the unedited photo, used by Auto
+  private live: Histogram | null = null; // the photo as it looks now, drawn on screen
   private select = document.createElement('select');
   private auto = document.createElement('button');
   private canvas = document.createElement('canvas');
@@ -39,7 +40,7 @@ export class LevelsEditor {
 
     const plot = document.createElement('div'); plot.className = 'levels-plot';
     this.canvas.className = 'levels-canvas';
-    this.canvas.setAttribute('aria-label', 'Histogram of the original photo');
+    this.canvas.setAttribute('aria-label', 'Histogram of the edited photo');
     this.strip.className = 'levels-strip';
     plot.append(this.canvas, this.strip);
 
@@ -82,7 +83,9 @@ export class LevelsEditor {
   }
 
   /** Histogram of the unedited photo, measured once when it loads. */
-  setHistogram(h: Histogram | null) { this.hist = h; this.update(); }
+  setHistogram(h: Histogram | null) { this.hist = h; this.live = null; this.update(); }
+  /** Histogram of the photo as it looks now, with every edit; redrawn whenever the photo is. */
+  setLiveHistogram(h: Histogram | null) { this.live = h; this.update(); }
 
   private get levels(): Levels { return this.store.params.levels[this.channel]; }
   private edit(fn: (l: Levels) => void) { this.store.change((p) => fn(p.levels[this.channel])); this.store.commit(); }
@@ -163,10 +166,10 @@ export class LevelsEditor {
     this.select.value = this.channel;
     for (const o of this.select.options) o.text = NAMES[o.value as Channel] + (isDefaultLevels(this.store.params.levels[o.value as Channel]) ? '' : ' •');
     this.auto.disabled = !this.hist;
-    this.draw(pos.black, pos.white);
+    this.draw();
   }
 
-  private draw(black: number, white: number) {
+  private draw() {
     const r = this.canvas.getBoundingClientRect();
     if (!r.width) return;
     const dpr = devicePixelRatio || 1;
@@ -174,10 +177,15 @@ export class LevelsEditor {
     const g = this.canvas.getContext('2d')!;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, r.width, r.height);
-    if (this.hist) drawArea(g, this.hist[HIST[this.channel]], 0, 4, r.width, r.height - 4, FILL[this.channel]);
-    // Dim the parts of the histogram that fall outside the black and white points.
-    g.fillStyle = 'rgba(19,19,22,0.72)';
-    g.fillRect(0, 0, black * r.width, r.height);
-    g.fillRect(white * r.width, 0, r.width - white * r.width, r.height);
+    const h = this.live ?? this.hist;
+    if (!h) return;
+    if (this.channel === 'rgb') {
+      // Red, green and blue on top of each other; where all three overlap they add up to white.
+      g.globalCompositeOperation = 'lighter';
+      drawArea(g, h.r, 0, 4, r.width, r.height - 4, 'rgba(255,80,70,0.75)');
+      drawArea(g, h.g, 0, 4, r.width, r.height - 4, 'rgba(70,200,100,0.75)');
+      drawArea(g, h.b, 0, 4, r.width, r.height - 4, 'rgba(80,130,255,0.75)');
+      g.globalCompositeOperation = 'source-over';
+    } else drawArea(g, h[HIST[this.channel]], 0, 4, r.width, r.height - 4, FILL[this.channel]);
   }
 }
