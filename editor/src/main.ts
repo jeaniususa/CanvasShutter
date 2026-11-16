@@ -440,7 +440,26 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 addEventListener('pagehide', () => { stashUnsaved(); void saveNow(); });
 addEventListener('resize', schedule); // redraws the histogram; the photo keeps its size
 // Turning a phone or tablet swaps the layout, so there the photo is fitted again.
-matchMedia('(orientation: portrait)').addEventListener('change', () => { if (isTouchDevice()) { fitPreview(); schedule(); } });
+matchMedia('(orientation: portrait)').addEventListener('change', () => { placeFilmstrip(); if (isTouchDevice()) { fitPreview(); schedule(); } });
+
+/*
+ * On a phone held upright (or a narrow window) the thumbnails sit at the top of the controls, so the
+ * photo gets more of the screen. Everywhere else they stay under the photo. The strip is moved, not
+ * copied, so it keeps working as before.
+ */
+const narrow = matchMedia('(max-width: 760px)');
+const sideways = matchMedia('(max-height: 500px) and (orientation: landscape) and (pointer: coarse)');
+function placeFilmstrip() {
+  const strip = $('filmstrip'), panel = $('panel'), work = $('work');
+  const inPanel = narrow.matches && !sideways.matches;
+  if (inPanel && strip.parentElement !== panel) panel.querySelector('header.toolbar')!.after(strip);
+  else if (!inPanel && strip.parentElement !== work) work.insertBefore(strip, $('ai-open'));
+  else return;
+  if (isTouchDevice()) { fitPreview(); schedule(); } // the photo's area changed size
+}
+placeFilmstrip();
+narrow.addEventListener('change', placeFilmstrip);
+sideways.addEventListener('change', placeFilmstrip);
 
 $('open').addEventListener('click', () => fileInput.click());
 $('open-empty').addEventListener('click', () => fileInput.click());

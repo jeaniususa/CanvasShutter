@@ -218,8 +218,12 @@ details.sub li + li { margin-top: 5px; }
 /* Narrow windows and phones held upright: the photo stays in view on top, the controls scroll underneath. */
 @media (max-width: 760px) {
   body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); height: 100vh; height: 100dvh; }
-  #work { height: 46vh; height: 46dvh; }
-  #stage { padding: 12px; }
+  :root { --photo-h: 62vh; }
+  @supports (height: 1dvh) { :root { --photo-h: 62dvh; } } /* dvh: the part of the screen really visible */
+  #work { height: var(--photo-h); }
+  #stage { padding: 6px; }
+  /* The thumbnails move to the top of the controls here (see placeFilmstrip in main.ts). */
+  #panel > #filmstrip { border-top: none; border-bottom: 1px solid var(--line); }
   #panel { height: auto; min-height: 0; border-left: none; border-top: 1px solid var(--line); overscroll-behavior: contain; }
   #panel > header.toolbar { position: sticky; top: 0; z-index: 2; background: var(--panel); }
   #histogram { height: 56px; }
@@ -231,7 +235,7 @@ details.sub li + li { margin-top: 5px; }
   .film-item img { height: 44px; width: auto; }
   /* The chat takes the place of the controls, so the photo stays in view above it. */
   #ai-open { top: 8px; right: 8px; }
-  #chat { top: 46vh; top: 46dvh; left: 0; right: 0; bottom: var(--keyboard, 0px); width: auto; max-width: none; height: auto; border-width: 1px 0 0; border-radius: 14px 14px 0 0; }
+  #chat { top: var(--photo-h); left: 0; right: 0; bottom: var(--keyboard, 0px); width: auto; max-width: none; height: auto; border-width: 1px 0 0; border-radius: 14px 14px 0 0; }
   #chat.typing { top: 0; border-radius: 0; } /* the keyboard is up: use all the room above it */
   .chat-head:has(#chat-model:not([hidden])) strong { display: none; } /* room for the model's full name */
   #chat-model { max-width: none; }
