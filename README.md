@@ -22,6 +22,8 @@ browser; nothing is uploaded to a server.
 - **Backup** of all adjustments to one small file, and restore from it.
 - **Export** to PNG or JPEG at full size.
 - **Undo and redo**, a hold-to-compare original view, and live histograms.
+- **Zoom in on the photo** with Cmd/Ctrl + and − (Cmd/Ctrl 0 fits it again) or a trackpad pinch.
+  Only the photo is magnified; the rest of the editor stays the same size.
 - **AI assistant**: ask for edits in plain language, using your own AI account (optional, off until you connect one).
 
 ## Add AI (optional)

@@ -16,6 +16,9 @@ only a person in front of a browser can confirm. It takes about ten minutes.
 - [ ] **Light** and **Color**: move each slider. Double-click a slider to reset it.
 - [ ] Undo and Redo buttons step through your changes.
 - [ ] Hold the **Original** button: the unedited photo shows while held.
+- [ ] **Zoom**: Cmd/Ctrl + zooms in on the photo only; the panel and buttons stay the same size.
+      Cmd/Ctrl − zooms back out, Cmd/Ctrl 0 fits the photo to the window again. A trackpad pinch
+      over the photo zooms the photo, not the page. When zoomed in, scroll to move around.
 - [ ] Switch to another photo and back. Each keeps its own settings.
 - [ ] Reload the page. The same photo is open and every edit is still there.
 - [ ] **Export PNG** and **Export JPEG** save a full-size file that matches what is on screen.
