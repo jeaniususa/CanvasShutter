@@ -82,13 +82,91 @@ function drawHistogram() {
  * resizes leave it alone; the exception is a phone or tablet being turned (see below).
  */
 function fitPreview() {
-  if (!pipeline?.imageWidth) return;
+  zoom = 0;
+  applyZoom();
+}
+
+/** How much the photo is zoomed: 0 means "fit to the window", otherwise 1 = the photo's real pixels. */
+let zoom = 0;
+const ZOOM_STEPS = [0.25, 1 / 3, 0.5, 2 / 3, 1, 1.5, 2, 3, 4];
+const MAX_ZOOM = ZOOM_STEPS[ZOOM_STEPS.length - 1];
+
+/** The scale at which the whole photo fits the window as it is right now. */
+function fitScale(): number {
+  if (!pipeline?.imageWidth) return 1;
   const r = stage.getBoundingClientRect();
   const pad = 2 * parseFloat(getComputedStyle(stage).paddingLeft); // 40 on desktop, less on small screens
-  const fit = Math.min(1, (r.width - pad) / pipeline.imageWidth, (r.height - pad) / pipeline.imageHeight);
-  const w = Math.max(1, Math.round(pipeline.imageWidth * fit)), h = Math.max(1, Math.round(pipeline.imageHeight * fit));
+  return Math.min(1, (r.width - pad) / pipeline.imageWidth, (r.height - pad) / pipeline.imageHeight);
+}
+
+/**
+ * Sizes the photo for the current zoom. Only the photo changes size; the rest of the page does not.
+ * The point of the photo under (anchorX, anchorY), in window coordinates, stays where it is.
+ */
+function applyZoom(anchorX?: number, anchorY?: number) {
+  if (!pipeline?.imageWidth) return;
+  const s = stage.getBoundingClientRect();
+  const ax = anchorX ?? s.left + s.width / 2, ay = anchorY ?? s.top + s.height / 2;
+  const old = view.getBoundingClientRect();
+  const fx = old.width ? Math.min(1, Math.max(0, (ax - old.left) / old.width)) : 0.5;
+  const fy = old.height ? Math.min(1, Math.max(0, (ay - old.top) / old.height)) : 0.5;
+
+  const scale = zoom || fitScale();
+  const w = Math.max(1, Math.round(pipeline.imageWidth * scale)), h = Math.max(1, Math.round(pipeline.imageHeight * scale));
   view.style.width = `${w}px`; view.style.height = `${h}px`;
-  pipeline.setPreviewSize(Math.max(w, h) * (devicePixelRatio || 1));
+  pipeline.setPreviewSize(Math.max(w, h) * (devicePixelRatio || 1)); // never more than the photo's real pixels
+  view.classList.toggle('pixels', scale > 1);
+
+  const now = view.getBoundingClientRect();
+  stage.scrollLeft += now.left + fx * now.width - ax;
+  stage.scrollTop += now.top + fy * now.height - ay;
+  schedule();
+}
+
+/** Zooms to a new scale, kept between "fit" and the largest step. */
+function setZoom(scale: number, anchorX?: number, anchorY?: number) {
+  const fit = fitScale();
+  zoom = scale <= fit * 1.001 ? 0 : Math.min(MAX_ZOOM, scale);
+  applyZoom(anchorX, anchorY);
+}
+
+/** Cmd/Ctrl + and −: step through the usual zoom levels, starting from "fit". */
+function stepZoom(direction: 1 | -1) {
+  if (!pipeline?.imageWidth || view.hidden) return;
+  const fit = fitScale(), current = zoom || fit;
+  const steps = ZOOM_STEPS.filter((z) => z > fit * 1.001);
+  const next = direction > 0
+    ? steps.find((z) => z > current * 1.001) ?? MAX_ZOOM
+    : [...steps].reverse().find((z) => z < current * 0.999) ?? 0;
+  setZoom(next);
+  say(zoom ? `Zoom ${Math.round(zoom * 100)}%` : 'Zoom: fit to window', 1500);
+}
+
+/** The scale at which the photo fills the whole window, edge to edge (some of it goes off screen). */
+function fillScale(): number {
+  if (!pipeline?.imageWidth) return 1;
+  const r = stage.getBoundingClientRect();
+  return Math.min(MAX_ZOOM, Math.max(r.width / pipeline.imageWidth, r.height / pipeline.imageHeight));
+}
+
+/** Where the mouse last was over the photo, so the space bar can zoom in on that spot. */
+let pointer: { x: number; y: number } | null = null;
+view.addEventListener('pointermove', (e) => { pointer = { x: e.clientX, y: e.clientY }; });
+view.addEventListener('pointerleave', () => { pointer = null; });
+
+/** Space bar: fit to window → fill the window → 100% → back to fit. */
+function cycleZoom() {
+  if (!pipeline?.imageWidth || view.hidden) return;
+  const fit = fitScale(), current = zoom || fit;
+  const views = [
+    { scale: fit, label: 'Zoom: fit to window' },
+    { scale: fillScale(), label: 'Zoom: fill the window' },
+    { scale: 1, label: 'Zoom 100%' },
+  ].sort((a, b) => a.scale - b.scale)
+    .filter((v, i, all) => v.scale >= fit && (i === 0 || v.scale > all[i - 1].scale * 1.01)); // a small photo can make two the same
+  const next = views.find((v) => v.scale > current * 1.01) ?? views[0];
+  setZoom(next.scale, pointer?.x, pointer?.y);
+  say(next.label, 1500);
 }
 
 /** Puts a decoded photo on screen. Returns false if the graphics setup failed. */
@@ -402,6 +480,15 @@ addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? store.redo() : store.undo(); }
   else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); store.redo(); }
+  // Cmd/Ctrl + − 0 zoom only the photo, instead of the whole page.
+  else if (mod && !e.altKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); stepZoom(1); }
+  else if (mod && !e.altKey && (e.key === '-' || e.key === '_')) { e.preventDefault(); stepZoom(-1); }
+  else if (mod && !e.altKey && e.key === '0') { e.preventDefault(); if (zoom) { fitPreview(); say('Zoom: fit to window', 1500); } }
+  // Space cycles the zoom, unless it is meant for a button, box or slider that has the keyboard.
+  else if (e.key === ' ' && !mod && !e.altKey && !(e.target as HTMLElement).closest?.('input, textarea, select, button, summary, a, [role=slider], [contenteditable]')) {
+    e.preventDefault(); // otherwise the page would scroll
+    if (!e.repeat) cycleZoom();
+  }
   else if (!typing && !mod && e.key === '\\') setOriginal(true);
   else if (!typing && !mod && e.key.toLowerCase() === 'o') fileInput.click();
   else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target as HTMLElement).closest?.('input, select, [role=slider]')) {
@@ -412,6 +499,27 @@ addEventListener('keydown', (e) => {
   }
 });
 addEventListener('keyup', (e) => { if (e.key === '\\') setOriginal(false); });
+
+// A trackpad pinch (or Ctrl + scroll wheel) over the photo zooms the photo around the pointer, not the page.
+stage.addEventListener('wheel', (e) => {
+  if (!e.ctrlKey) return; // an ordinary scroll moves around a zoomed-in photo
+  e.preventDefault();
+  if (!pipeline?.imageWidth || view.hidden) return;
+  const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // some mice report lines, not pixels
+  setZoom((zoom || fitScale()) * Math.exp(-delta * 0.01), e.clientX, e.clientY);
+}, { passive: false });
+// Safari on a Mac reports a trackpad pinch as its own "gesture" events instead.
+type Gesture = Event & { scale: number; clientX: number; clientY: number };
+let pinchStart = 0;
+// iPads send the same events for a two-finger pinch on the screen; those are left alone.
+stage.addEventListener('gesturestart', (e) => { if (isTouchDevice()) return; e.preventDefault(); pinchStart = zoom || fitScale(); });
+stage.addEventListener('gesturechange', (e) => {
+  if (isTouchDevice()) return;
+  e.preventDefault();
+  const g = e as Gesture;
+  if (pipeline?.imageWidth && !view.hidden) setZoom(pinchStart * g.scale, g.clientX, g.clientY);
+});
+stage.addEventListener('gestureend', (e) => { if (!isTouchDevice()) e.preventDefault(); });
 
 addEventListener('dragover', (e) => { e.preventDefault(); stage.classList.add('dragover'); });
 addEventListener('dragleave', (e) => { if (!e.relatedTarget) stage.classList.remove('dragover'); });
