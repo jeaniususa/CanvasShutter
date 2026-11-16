@@ -142,6 +142,33 @@ function stepZoom(direction: 1 | -1) {
   say(zoom ? `Zoom ${Math.round(zoom * 100)}%` : 'Zoom: fit to window', 1500);
 }
 
+/** The scale at which the photo fills the whole window, edge to edge (some of it goes off screen). */
+function fillScale(): number {
+  if (!pipeline?.imageWidth) return 1;
+  const r = stage.getBoundingClientRect();
+  return Math.min(MAX_ZOOM, Math.max(r.width / pipeline.imageWidth, r.height / pipeline.imageHeight));
+}
+
+/** Where the mouse last was over the photo, so the space bar can zoom in on that spot. */
+let pointer: { x: number; y: number } | null = null;
+view.addEventListener('pointermove', (e) => { pointer = { x: e.clientX, y: e.clientY }; });
+view.addEventListener('pointerleave', () => { pointer = null; });
+
+/** Space bar: fit to window → fill the window → 100% → back to fit. */
+function cycleZoom() {
+  if (!pipeline?.imageWidth || view.hidden) return;
+  const fit = fitScale(), current = zoom || fit;
+  const views = [
+    { scale: fit, label: 'Zoom: fit to window' },
+    { scale: fillScale(), label: 'Zoom: fill the window' },
+    { scale: 1, label: 'Zoom 100%' },
+  ].sort((a, b) => a.scale - b.scale)
+    .filter((v, i, all) => v.scale >= fit && (i === 0 || v.scale > all[i - 1].scale * 1.01)); // a small photo can make two the same
+  const next = views.find((v) => v.scale > current * 1.01) ?? views[0];
+  setZoom(next.scale, pointer?.x, pointer?.y);
+  say(next.label, 1500);
+}
+
 /** Puts a decoded photo on screen. Returns false if the graphics setup failed. */
 function display(source: ImageBitmap, name: string): boolean {
   try {
@@ -457,6 +484,11 @@ addEventListener('keydown', (e) => {
   else if (mod && !e.altKey && (e.key === '=' || e.key === '+')) { e.preventDefault(); stepZoom(1); }
   else if (mod && !e.altKey && (e.key === '-' || e.key === '_')) { e.preventDefault(); stepZoom(-1); }
   else if (mod && !e.altKey && e.key === '0') { e.preventDefault(); if (zoom) { fitPreview(); say('Zoom: fit to window', 1500); } }
+  // Space cycles the zoom, unless it is meant for a button, box or slider that has the keyboard.
+  else if (e.key === ' ' && !mod && !e.altKey && !(e.target as HTMLElement).closest?.('input, textarea, select, button, summary, a, [role=slider], [contenteditable]')) {
+    e.preventDefault(); // otherwise the page would scroll
+    if (!e.repeat) cycleZoom();
+  }
   else if (!typing && !mod && e.key === '\\') setOriginal(true);
   else if (!typing && !mod && e.key.toLowerCase() === 'o') fileInput.click();
   else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target as HTMLElement).closest?.('input, select, [role=slider]')) {

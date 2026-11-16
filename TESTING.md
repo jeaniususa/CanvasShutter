@@ -19,6 +19,8 @@ only a person in front of a browser can confirm. It takes about ten minutes.
 - [ ] **Zoom**: Cmd/Ctrl + zooms in on the photo only; the panel and buttons stay the same size.
       Cmd/Ctrl − zooms back out, Cmd/Ctrl 0 fits the photo to the window again. A trackpad pinch
       over the photo zooms the photo, not the page. When zoomed in, scroll to move around.
+- [ ] Press the space bar: the photo goes from fit to window, to filling the window, to 100%,
+      then back to fit. Space typed in the chat box still types a space.
 - [ ] Switch to another photo and back. Each keeps its own settings.
 - [ ] Reload the page. The same photo is open and every edit is still there.
 - [ ] **Export PNG** and **Export JPEG** save a full-size file that matches what is on screen.
