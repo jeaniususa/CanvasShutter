@@ -28,9 +28,13 @@ describe('colour near white', () => {
     expect(spread(colourAfter(c, scale(c, 1.5)))).toBeGreaterThan(spread(c) * 1.1);
   });
 
-  it('leaves darkened colours exactly as the brightness steps made them', () => {
+  it('brings colour back, moderately, when a bright colour is darkened', () => {
     const c: RGB = [0.89, 0.19, 0.19];
-    for (const k of [0.3, 0.6, 0.99]) expect(colourAfter(c, scale(c, k))).toEqual(scale(c, k));
+    for (const k of [0.3, 0.6]) {
+      const s = spread(colourAfter(c, scale(c, k)));
+      expect(s).toBeLessThan(spread(c) * 0.95);
+      expect(s).toBeGreaterThan(spread(c) * 0.3);
+    }
   });
 
   it('leaves dark colours nearly as they were', () => {
@@ -63,6 +67,12 @@ describe('colour near white', () => {
       expect(out[0]).toBeGreaterThanOrEqual(out[2]); expect(out[1]).toBeGreaterThanOrEqual(out[2]);
       expect(Math.abs(out[0] - out[1])).toBeLessThan(1e-9);
     }
+  });
+
+  it('darkens colours with a clipped channel richer, since their real colour was stronger', () => {
+    const clippedOrange: RGB = [1, 0.4, 0], openOrange: RGB = [0.9, 0.36, 0];
+    const a = colourAfter(clippedOrange, scale(clippedOrange, 0.25)), b = colourAfter(openOrange, scale(openOrange, 0.25));
+    expect(a[1] / a[0]).toBeLessThan(b[1] / b[0]);
   });
 
   it('is written to GLSL', () => {
