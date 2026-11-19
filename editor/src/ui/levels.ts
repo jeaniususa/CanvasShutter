@@ -65,6 +65,8 @@ export class LevelsEditor {
       el.addEventListener('pointermove', (e) => this.onMove(h, e));
       el.addEventListener('pointerup', (e) => this.onUp(h, e));
       el.addEventListener('pointercancel', (e) => this.onUp(h, e));
+      // Safari: Option-drag would start a selection or a drag-and-drop and cancel the press.
+      for (const ev of ['dragstart', 'selectstart']) el.addEventListener(ev, (e) => e.preventDefault());
       const reset = () => this.edit((l) => { const d = defaultLevels(); if (h === 'mid') l.gamma = d.gamma; else if (h === 'black') setBlack(l, d.black); else setWhite(l, d.white); });
       el.addEventListener('dblclick', reset);
       onDoubleTap(el, reset);

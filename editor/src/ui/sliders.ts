@@ -69,6 +69,8 @@ export function buildSliders(root: HTMLElement, store: Store, defs: Def[], onCli
     updaters.push(update);
 
     let lastX = 0, exact = 0, startX = 0, moving = false;
+    // Safari: Option-drag would start a selection or a drag-and-drop and cancel the press.
+    for (const ev of ['dragstart', 'selectstart']) track.addEventListener(ev, (e) => e.preventDefault());
     track.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       track.setPointerCapture(e.pointerId);
