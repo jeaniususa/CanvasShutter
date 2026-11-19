@@ -11,6 +11,7 @@ import { setupChat } from './ui/chat';
 import { isTouchDevice } from './ui/touch';
 import { jeaniusLevels, type RGBAImage } from './jeanius';
 import { makeZip, uniqueNames } from './zip';
+import { pickFolder, saveInto } from './export-folder';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const stage = $('stage'), view = $<HTMLCanvasElement>('view'), empty = $('empty'), badge = $('badge'), notice = $('notice');
@@ -422,22 +423,37 @@ async function jeaniusAll() {
   if (n) say(`Jeanius set the levels on ${n} photo${n === 1 ? '' : 's'}. Every slider can still be adjusted.`, 8000);
 }
 
-/** Export all: every photo, as edited, in one ZIP of full-size JPEGs. */
+/**
+ * Export all: every photo, as edited, as full-size JPEGs. The user picks the folder first; browsers
+ * that cannot save into a folder (Safari, Firefox) get one ZIP file in their Downloads folder instead.
+ */
 async function exportAll() {
-  const files: { name: string; data: Uint8Array<ArrayBuffer> }[] = [];
+  if (batch || !library.photos.length) return;
+  const folder = await pickFolder(); // asked first, while the click still counts as the user's
+  if (folder === null) return;       // they cancelled
+  const zipped: { name: string; data: Uint8Array<ArrayBuffer> }[] = [];
+  let saved = 0;
   try {
     await eachPhoto('Exporting', async () => {
       const blob = await pipeline!.export(store.params, 'image/jpeg');
-      files.push({ name: `${fileName}-edited.jpg`, data: new Uint8Array(await blob.arrayBuffer()) });
+      const name = `${fileName}-edited.jpg`;
+      if (folder === 'unsupported') zipped.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
+      else { await saveInto(folder, name, blob); saved++; }
     });
   } catch (err) {
-    say(`Export stopped: ${(err as Error).message}`, 10000);
+    say(`Export stopped${saved ? ` after ${saved} photo${saved === 1 ? '' : 's'}` : ''}: ${(err as Error).message}`, 10000);
     return;
   }
-  if (!files.length) return;
-  const names = uniqueNames(files.map((f) => f.name));
-  download(makeZip(files.map((f, i) => ({ name: names[i], data: f.data }))), `canvasshutter-export-${new Date().toISOString().slice(0, 10)}.zip`);
-  say(`Exported ${files.length} photo${files.length === 1 ? '' : 's'} as one ZIP file of JPEGs.`, 8000);
+  if (folder !== 'unsupported') {
+    if (saved) say(`Saved ${saved} photo${saved === 1 ? '' : 's'} into the folder "${folder.name}". Files already there were kept; new ones got a number added.`, 9000);
+    schedule();
+    return;
+  }
+  if (!zipped.length) return;
+  const names = uniqueNames(zipped.map((f) => f.name));
+  const zipName = `canvasshutter-export-${new Date().toISOString().slice(0, 10)}.zip`;
+  download(makeZip(zipped.map((f, i) => ({ name: names[i], data: f.data }))), zipName);
+  say(`This browser cannot save into a folder you choose, so the ${zipped.length} photo${zipped.length === 1 ? ' was' : 's were'} saved as one file, ${zipName}, in your Downloads folder. In Chrome or Edge you can pick the folder.`, 12000);
   schedule();
 }
 
