@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildToneLut, gain, shoulderStart, SHOULDER_DEPTH, STOPS_AT_FULL, type ToneSettings } from '../src/tone';
 
-const zero: ToneSettings = { contrast: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0 };
+const zero: ToneSettings = { contrast: 0, whites: 0, blacks: 0 };
 const at = (lut: Float32Array, x: number) => lut[Math.round(x * (lut.length - 1))];
 
 describe('slider strength', () => {
@@ -25,8 +25,8 @@ describe('tone response', () => {
 
   it('never folds back on itself, at any combination of extremes', () => {
     const v = [-100, 0, 100];
-    for (const contrast of v) for (const highlights of v) for (const shadows of v) for (const whites of v) for (const blacks of v) {
-      const lut = buildToneLut({ contrast, highlights, shadows, whites, blacks }, 512);
+    for (const contrast of v) for (const whites of v) for (const blacks of v) {
+      const lut = buildToneLut({ contrast, whites, blacks }, 512);
       for (let i = 1; i < lut.length; i++) expect(lut[i]).toBeGreaterThanOrEqual(lut[i - 1] - 1e-7);
       expect(lut[0]).toBeGreaterThanOrEqual(0);
       expect(lut[lut.length - 1]).toBeLessThanOrEqual(1 + 1e-6);
@@ -43,22 +43,6 @@ describe('tone response', () => {
     const up = buildToneLut({ ...zero, contrast: 60 }, 1025), down = buildToneLut({ ...zero, contrast: -60 }, 1025);
     expect(at(up, 0.25)).toBeLessThan(0.25); expect(at(up, 0.75)).toBeGreaterThan(0.75);
     expect(at(down, 0.25)).toBeGreaterThan(0.25); expect(at(down, 0.75)).toBeLessThan(0.75);
-  });
-
-  it('shadows act mostly on dark tones and keep the end points', () => {
-    const up = buildToneLut({ ...zero, shadows: 100 }, 1025), down = buildToneLut({ ...zero, shadows: -100 }, 1025);
-    expect(at(up, 0.1)).toBeGreaterThan(0.15);
-    expect(at(down, 0.1)).toBeLessThan(0.07);
-    expect(at(up, 0.1) - 0.1).toBeGreaterThan(at(up, 0.9) - 0.9); // more lift in the darks than the brights
-    for (const l of [up, down]) { expect(l[0]).toBeCloseTo(0, 6); expect(l[1024]).toBeCloseTo(1, 6); }
-  });
-
-  it('highlights act mostly on bright tones and keep the end points', () => {
-    const down = buildToneLut({ ...zero, highlights: -100 }, 1025), up = buildToneLut({ ...zero, highlights: 100 }, 1025);
-    expect(at(down, 0.9)).toBeLessThan(0.85);
-    expect(at(up, 0.9)).toBeGreaterThan(0.93);
-    expect(0.9 - at(down, 0.9)).toBeGreaterThan(0.1 - at(down, 0.1)); // more pull-down in the brights than the darks
-    for (const l of [up, down]) { expect(l[0]).toBeCloseTo(0, 6); expect(l[1024]).toBeCloseTo(1, 6); }
   });
 
   it('whites and blacks move the ends', () => {
