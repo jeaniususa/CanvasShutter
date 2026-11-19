@@ -28,9 +28,9 @@ describe('colour near white', () => {
     expect(spread(colourAfter(c, scale(c, 1.5)))).toBeGreaterThan(spread(c) * 1.1);
   });
 
-  it('brings colour back when a bright colour is darkened', () => {
+  it('leaves darkened colours exactly as the brightness steps made them', () => {
     const c: RGB = [0.89, 0.19, 0.19];
-    expect(spread(colourAfter(c, scale(c, 0.6)))).toBeLessThan(spread(c) * 0.9);
+    for (const k of [0.3, 0.6, 0.99]) expect(colourAfter(c, scale(c, k))).toEqual(scale(c, k));
   });
 
   it('leaves dark colours nearly as they were', () => {
@@ -44,6 +44,24 @@ describe('colour near white', () => {
       const order = (x: RGB) => [0, 1, 2].sort((a, b) => x[a] - x[b]).join();
       expect(order(out)).toBe(order(c));
       for (const v of out) expect(Number.isFinite(v)).toBe(true);
+    }
+  });
+
+  it('stays smooth next to white: one level of noise cannot swing the colour', () => {
+    // A sunset sky: the red channel sits at 254-255 while green and blue vary.
+    const lin = (c: number) => { const v = c / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    for (const k of [0.5, 0.7, 1.3, 2]) for (const [g, b] of [[140, 0], [100, 20], [200, 180], [250, 240], [255, 250]]) {
+      const a: RGB = [lin(255), lin(g), lin(b)], c: RGB = [lin(254), lin(g), lin(b)];
+      const ra = colourAfter(a, scale(a, k)), rc = colourAfter(c, scale(c, k));
+      for (const i of [1, 2]) if (a[i] > 0) expect(Math.abs(Math.log2((ra[i] / ra[0]) / (rc[i] / rc[0])))).toBeLessThan(0.1);
+    }
+  });
+
+  it('keeps near-white colours near white instead of flipping hue', () => {
+    for (const k of [0.4, 0.6, 1.5]) {
+      const sun: RGB = [1, 1, 0.93], out = colourAfter(sun, scale(sun, k));
+      expect(out[0]).toBeGreaterThanOrEqual(out[2]); expect(out[1]).toBeGreaterThanOrEqual(out[2]);
+      expect(Math.abs(out[0] - out[1])).toBeLessThan(1e-9);
     }
   });
 
