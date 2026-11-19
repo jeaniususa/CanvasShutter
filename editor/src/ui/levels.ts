@@ -33,7 +33,13 @@ export class LevelsEditor {
     const top = document.createElement('div'); top.className = 'levels-top';
     this.select.setAttribute('aria-label', 'Levels channel');
     for (const ch of CHANNELS) this.select.append(new Option(NAMES[ch], ch));
-    this.select.addEventListener('change', () => { this.channel = this.select.value as Channel; this.update(); });
+    this.select.addEventListener('change', () => {
+      this.channel = this.select.value as Channel;
+      // Let go of the menu once a channel is picked, so the next press on a handle is not spent
+      // taking focus away from it (Safari otherwise needs a second press).
+      this.select.blur();
+      this.update();
+    });
     this.auto.textContent = 'Auto';
     this.auto.title = 'Set the black and white points from the photo';
     this.auto.addEventListener('click', () => this.runAuto());
@@ -125,6 +131,7 @@ export class LevelsEditor {
 
   private onDown(h: Handle, e: PointerEvent) {
     if (e.button !== 0) return;
+    e.preventDefault(); // the handle takes the press itself: no text selection or focus tug-of-war
     const el = this.handles[h];
     el.setPointerCapture(e.pointerId); el.focus();
     const l = this.levels;
@@ -168,8 +175,13 @@ export class LevelsEditor {
       this.handles[h].setAttribute('aria-valuetext', text[h]);
       if (document.activeElement !== this.inputs[h]) this.inputs[h].value = text[h];
     }
-    this.select.value = this.channel;
-    for (const o of this.select.options) o.text = NAMES[o.value as Channel] + (isDefaultLevels(this.store.params.levels[o.value as Channel]) ? '' : ' •');
+    if (this.select.value !== this.channel) this.select.value = this.channel;
+    // Only touch the menu when a label really changes: Safari rebuilds its native menu on every
+    // label change, and this runs on every step of a drag.
+    for (const o of this.select.options) {
+      const label = NAMES[o.value as Channel] + (isDefaultLevels(this.store.params.levels[o.value as Channel]) ? '' : ' •');
+      if (o.text !== label) o.text = label;
+    }
     this.auto.disabled = !this.hist;
     this.jeanius.disabled = !this.hist || !this.onJeanius;
     this.draw();
