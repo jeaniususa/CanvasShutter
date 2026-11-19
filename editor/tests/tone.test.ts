@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildToneLut, gain, shoulderStart, SHOULDER_DEPTH, STOPS_AT_FULL, type ToneSettings } from '../src/tone';
+import { buildToneLut, gain, STOPS_AT_FULL, type ToneSettings } from '../src/tone';
 
 const zero: ToneSettings = { contrast: 0, whites: 0, blacks: 0 };
 const at = (lut: Float32Array, x: number) => lut[Math.round(x * (lut.length - 1))];
@@ -50,16 +50,5 @@ describe('tone response', () => {
     expect(buildToneLut({ ...zero, whites: -100 }, 1025)[1024]).toBeCloseTo(0.8, 6);   // white is lowered
     expect(buildToneLut({ ...zero, blacks: -100 }, 1025)[150]).toBeCloseTo(0, 6);      // dark tones crush to black
     expect(buildToneLut({ ...zero, blacks: 100 }, 1025)[0]).toBeCloseTo(0.1, 6);       // black is lifted
-  });
-});
-
-describe('exposure roll-off', () => {
-  it('is off at or below 0 EV and starts lower as exposure rises, within limits', () => {
-    expect(shoulderStart(0)).toBe(1);
-    expect(shoulderStart(-2)).toBe(1);
-    expect(shoulderStart(1)).toBeCloseTo(1 - SHOULDER_DEPTH / 2, 12);
-    expect(shoulderStart(1)).toBeLessThan(shoulderStart(0.5));
-    expect(shoulderStart(5)).toBeGreaterThan(1 - SHOULDER_DEPTH);
-    expect(shoulderStart(50)).toBeCloseTo(1 - SHOULDER_DEPTH, 9);
   });
 });

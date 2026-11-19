@@ -53,17 +53,3 @@ export function buildToneLut(s: ToneSettings, size = 1024): Float32Array {
   }
   return out;
 }
-
-/** How far below white the highlight roll-off can start at high exposure (linear light, 1 = white). */
-export const SHOULDER_DEPTH = 0.36;
-
-/**
- * Where the highlight roll-off starts (in linear light, 1 = white) for a given exposure in stops.
- * Raising exposure rolls bright areas off toward white instead of cutting them off flat. At 0 EV
- * or below this returns 1, meaning no roll-off; each further stop halves the remaining distance
- * to the lowest starting point, 1 - SHOULDER_DEPTH.
- */
-export function shoulderStart(ev: number): number {
-  if (ev <= 0) return 1;
-  return 1 - SHOULDER_DEPTH * (1 - Math.pow(2, -ev));
-}
