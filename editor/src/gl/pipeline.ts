@@ -1,5 +1,6 @@
 import type { Params } from '../state';
-import { buildToneLut, shoulderStart } from '../tone';
+import { buildToneLut } from '../tone';
+import { EXPOSURE_GLSL } from '../exposure';
 import { LOCAL_TONE_GLSL, SURROUND_SIGMA, FLOOR_STOPS } from '../local-tone';
 
 const TONE_SIZE = 1024;
@@ -32,12 +33,15 @@ vec3 levels(vec3 c) {
   return pow(clamp((c - u_lvBlack) / (u_lvWhite - u_lvBlack), 0.0, 1.0), u_lvInvGamma);
 }
 
+${EXPOSURE_GLSL}
+
 // White balance in linear light: temp trades red against blue, tint trades green against
-// magenta. Gains are normalised so overall brightness stays about the same. Exposure follows.
+// magenta. Gains are normalised so overall brightness stays about the same. Exposure follows,
+// as a curve that holds white (src/exposure.ts).
 vec3 balance(vec3 lin) {
   vec3 wb = vec3(exp2(0.45 * u_temp + 0.2 * u_tint), exp2(-0.4 * u_tint), exp2(-0.45 * u_temp + 0.2 * u_tint));
   wb /= dot(wb, vec3(0.2126, 0.7152, 0.0722));
-  return lin * wb * exp2(u_ev);
+  return expose(lin * wb, u_ev);
 }
 
 // Brightness map values are log2 brightness in stops. Without float render targets they are
@@ -88,8 +92,8 @@ void main() {
   o = vec4(encMask(sum / wsum), 0.0, 0.0, 1.0);
 }`;
 
-// Processing order: levels -> white balance and exposure (in linear light) -> local highlights and
-// shadows (linear light, src/local-tone.ts) -> exposure highlight roll-off -> one shared tone
+// Processing order: levels -> white balance and exposure (in linear light, src/exposure.ts) ->
+// local highlights and shadows (linear light, src/local-tone.ts) -> one shared tone
 // response for contrast, whites and blacks (on brightness, in display space, src/tone.ts) ->
 // vibrance and saturation.
 const FRAG = (head: string) => `#version 300 es
@@ -99,7 +103,6 @@ uniform sampler2D u_img;
 uniform sampler2D u_tone;   // shared tone response for contrast, whites, blacks
 uniform sampler2D u_mask;   // brightness of each pixel's surroundings (log2 stops)
 uniform float u_hl, u_sh;   // highlights and shadows, -100..100 (0 and 0 = local stage off)
-uniform float u_shoulder;   // linear level where the exposure highlight roll-off starts (1 = off)
 uniform float u_vib, u_sat; // -1..0 for negative settings, 0..COLOR_GAIN for positive
 uniform int u_mode; // 0 = full, 1 = original, 3/4 = clipping after all edits, 5/6 = clipping after levels
 uniform vec3 u_clipMask;                          // which channels the levels clipping view shows
@@ -108,14 +111,6 @@ ${LOCAL_TONE_GLSL}
 in vec2 v_uv;
 out vec4 o;
 
-// Rolls bright areas off toward white instead of cutting them off flat. The brightest channel is
-// compressed and the others follow in proportion, so colours keep their hue.
-vec3 shoulder(vec3 c) {
-  float m = max(c.r, max(c.g, c.b));
-  if (u_shoulder >= 1.0 || m <= u_shoulder) return c;
-  float room = 1.0 - u_shoulder;
-  return c * ((u_shoulder + room * (1.0 - exp(-(m - u_shoulder) / room))) / m);
-}
 
 void main() {
   vec4 t = texture(u_img, v_uv);
@@ -133,7 +128,7 @@ void main() {
     float L = log2(max(dot(lin, vec3(0.2126, 0.7152, 0.0722)), exp2(${FLOOR_STOPS.toFixed(1)})));
     lin *= exp2(localToneDelta(L, B, u_hl, u_sh));
   }
-  vec3 c = toDisplay(shoulder(lin));
+  vec3 c = toDisplay(lin);
   float y = clamp(dot(c, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
   float y2 = texture(u_tone, vec2((y * 1023.0 + 0.5) / 1024.0, 0.5)).r;
   // Scale colour by the brightness change (keeps hue); near black, shift instead so blacks can lift.
@@ -192,7 +187,7 @@ export class Pipeline {
     this.maskProg = this.link(VERT, MASK_FRAG(head));
     this.blurProg = this.link(VERT, BLUR_FRAG(head));
     const shared = ['u_ev', 'u_temp', 'u_tint', 'u_lvMaster', 'u_lvBlack', 'u_lvWhite', 'u_lvInvGamma'];
-    for (const n of [...shared, 'u_img', 'u_tone', 'u_mask', 'u_hl', 'u_sh', 'u_shoulder', 'u_vib', 'u_sat', 'u_mode', 'u_clipMask']) this.u[n] = gl.getUniformLocation(this.prog, n);
+    for (const n of [...shared, 'u_img', 'u_tone', 'u_mask', 'u_hl', 'u_sh', 'u_vib', 'u_sat', 'u_mode', 'u_clipMask']) this.u[n] = gl.getUniformLocation(this.prog, n);
     for (const n of [...shared, 'u_img']) this.um[n] = gl.getUniformLocation(this.maskProg, n);
     for (const n of ['u_src', 'u_dir', 'u_sigma']) this.ub[n] = gl.getUniformLocation(this.blurProg, n);
     this.img = this.texture(gl.LINEAR);
@@ -338,7 +333,6 @@ export class Pipeline {
     gl.uniform1f(this.u.u_hl, local ? p.highlights : 0);
     gl.uniform1f(this.u.u_sh, local ? p.shadows : 0);
     this.setCommon(this.u, p);
-    gl.uniform1f(this.u.u_shoulder, shoulderStart(p.exposure));
     gl.uniform1f(this.u.u_vib, colorAmount(p.vibrance));
     gl.uniform1f(this.u.u_sat, colorAmount(p.saturation));
     gl.uniform3f(this.u.u_clipMask, ...clipMask);
