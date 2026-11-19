@@ -8,16 +8,17 @@
  *
  * S maps 0..infinity onto 0..1 and only reaches 1 at infinity, so when brightening pure white
  * never moves and nothing can be pushed past white. When darkening, white sits just inside the
- * curve (darkenWhite), so it barely moves at normal settings (0.1 stop at -1) and comes down with
- * everything else at strong settings. Holding it fully would make the curve so steep next to white
- * that one level of a JPEG could become eight, drawing hard edges and blocks around bright areas;
- * the table keeps that stretch to about three levels at every setting. In the darks S behaves like x^p, so one stop of
+ * curve (darkenWhite), so it barely moves at small settings (none at -0.5, half a stop at -1) and
+ * comes down with everything else at strong settings. Holding it fully would make the curve so
+ * steep next to white that one level of a JPEG could become eight, and the edge of a blown area
+ * (a flat patch at 255) would show as a hard outline; the table keeps that stretch to about two
+ * levels at every setting. In the darks S behaves like x^p, so one stop of
  * exposure moves dark tones about p stops; the change tapers smoothly toward white. When
  * brightening, the change also fades out in the deepest blacks (below about TOE in linear light),
  * so pure black is not lifted into noise.
  *
- * The constants were tuned against test-chart measurements of +1 and -1 stop of exposure
- * (about 0.09 stop typical error over 46 measured tones).
+ * The constants were tuned against test-chart measurements of +1 and -1 stop of exposure (about
+ * 0.04 stop typical error at +1; 0.17 at -1, where white is deliberately let down for smoothness).
  */
 export const P = 1.36;
 export const Q = 1.95;
@@ -27,9 +28,9 @@ const NEAR_WHITE = 0.999999;
 /**
  * Where white sits on the curve when darkening by `stops` (negative), as [stops, position] points
  * joined by straight lines. Chosen so one input level near white never becomes more than about
- * three output levels, while darkening stays steady all the way down.
+ * two output levels, while darkening stays steady all the way down.
  */
-export const DARKEN_WHITE: ReadonlyArray<readonly [number, number]> = [[0, 1], [-0.5, 0.999], [-1, 0.975], [-1.5, 0.9], [-2, 0.876], [-2.5, 0.878], [-3, 0.89], [-4, 0.915], [-5, 0.935]];
+export const DARKEN_WHITE: ReadonlyArray<readonly [number, number]> = [[0, 1], [-0.5, 0.999], [-1, 0.835], [-1.5, 0.802], [-2, 0.807], [-3, 0.843], [-4, 0.882], [-5, 0.913]];
 export function darkenWhite(stops: number): number {
   const t = DARKEN_WHITE, e = Math.max(t[t.length - 1][0], Math.min(0, stops));
   for (let i = 1; i < t.length; i++) if (e >= t[i][0]) { const [x0, y0] = t[i - 1], [x1, y1] = t[i]; return y0 + (y1 - y0) * (e - x0) / (x1 - x0); }
