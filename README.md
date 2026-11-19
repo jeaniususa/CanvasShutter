@@ -15,7 +15,8 @@ browser; nothing is uploaded to a server.
   button, and a clipping view: hold Option/Alt while dragging the white or black handle to see
   only what is clipping.
 - **Light**: Exposure, Contrast, Highlights, Shadows, Whites, Blacks. Exposure holds white: raising
-  it lifts the darks and midtones without blowing out the brights. Highlights and Shadows are
+  it lifts the darks and midtones without blowing out the brights, and bright colours soften
+  toward white the way real light does. Highlights and Shadows are
   local: each part of the photo is adjusted according to how bright its surroundings are, so a
   dark doorway on a sunny street is lifted more than the same tone in a night scene. Contrast,
   Whites and Blacks share one tone curve, so they cannot fight each other.

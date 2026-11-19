@@ -1,6 +1,7 @@
 import type { Params } from '../state';
 import { buildToneLut } from '../tone';
 import { EXPOSURE_GLSL } from '../exposure';
+import { COLOUR_STEP_GLSL } from '../colour-step';
 import { LOCAL_TONE_GLSL, SURROUND_SIGMA, FLOOR_STOPS } from '../local-tone';
 
 const TONE_SIZE = 1024;
@@ -38,11 +39,12 @@ ${EXPOSURE_GLSL}
 // White balance in linear light: temp trades red against blue, tint trades green against
 // magenta. Gains are normalised so overall brightness stays about the same. Exposure follows,
 // as a curve that holds white (src/exposure.ts).
-vec3 balance(vec3 lin) {
+vec3 whiteBalance(vec3 lin) {
   vec3 wb = vec3(exp2(0.45 * u_temp + 0.2 * u_tint), exp2(-0.4 * u_tint), exp2(-0.45 * u_temp + 0.2 * u_tint));
   wb /= dot(wb, vec3(0.2126, 0.7152, 0.0722));
-  return expose(lin * wb, u_ev);
+  return lin * wb;
 }
+vec3 balance(vec3 lin) { return expose(whiteBalance(lin), u_ev); }
 
 // Brightness map values are log2 brightness in stops. Without float render targets they are
 // stored in 8 bits over FLOOR..0 (about 1/20 stop steps, smooth after the blur).
@@ -93,7 +95,8 @@ void main() {
 }`;
 
 // Processing order: levels -> white balance and exposure (in linear light, src/exposure.ts) ->
-// local highlights and shadows (linear light, src/local-tone.ts) -> one shared tone
+// local highlights and shadows (linear light, src/local-tone.ts) -> colour near white
+// (src/colour-step.ts) -> one shared tone
 // response for contrast, whites and blacks (on brightness, in display space, src/tone.ts) ->
 // vibrance and saturation.
 const FRAG = (head: string) => `#version 300 es
@@ -108,6 +111,7 @@ uniform int u_mode; // 0 = full, 1 = original, 3/4 = clipping after all edits, 5
 uniform vec3 u_clipMask;                          // which channels the levels clipping view shows
 ${COMMON}
 ${LOCAL_TONE_GLSL}
+${COLOUR_STEP_GLSL}
 in vec2 v_uv;
 out vec4 o;
 
@@ -120,7 +124,8 @@ void main() {
   // clipped-to-black channels removed.
   if (u_mode == 5) { o = vec4(step(vec3(254.5 / 255.0), lv) * u_clipMask, 1.0); return; }
   if (u_mode == 6) { o = vec4(vec3(1.0) - step(lv, vec3(0.5 / 255.0)) * u_clipMask, 1.0); return; }
-  vec3 lin = balance(toLinear(lv));
+  vec3 base = whiteBalance(toLinear(lv));
+  vec3 lin = expose(base, u_ev);
   // Local highlights and shadows: each pixel moves by an amount that depends on its own brightness
   // and on its surroundings' (see src/local-tone.ts). All channels move together, keeping hue.
   if (u_hl != 0.0 || u_sh != 0.0) {
@@ -128,7 +133,9 @@ void main() {
     float L = log2(max(dot(lin, vec3(0.2126, 0.7152, 0.0722)), exp2(${FLOOR_STOPS.toFixed(1)})));
     lin *= exp2(localToneDelta(L, B, u_hl, u_sh));
   }
-  vec3 c = toDisplay(lin);
+  // Bright colours soften toward white when brightened and regain colour when darkened
+  // (src/colour-step.ts). Only the brightness steps above count; levels and white balance do not.
+  vec3 c = toDisplay(colourAfter(base, lin));
   float y = clamp(dot(c, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
   float y2 = texture(u_tone, vec2((y * 1023.0 + 0.5) / 1024.0, 0.5)).r;
   // Scale colour by the brightness change (keeps hue); near black, shift instead so blacks can lift.
