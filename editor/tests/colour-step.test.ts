@@ -75,6 +75,18 @@ describe('colour near white', () => {
     expect(a[1] / a[0]).toBeLessThan(b[1] / b[0]);
   });
 
+  it('brightening treats neighbouring pixels alike where a clipped channel jitters (no mottling)', () => {
+    const lin = (c: number) => { const v = c / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    // Brightening only. Darkening still measures on the brightest channel and does vary with this
+    // jitter; in flat areas the debanding in the pipeline averages it away first, and renders of a
+    // JPEG sunset were smoother that way than with a luminance-based darkening.
+    for (const k of [2 ** 0.15, 2 ** 0.4, 2 ** 0.7, 2 ** 1.5]) {
+      const ratios = [252, 253, 254, 255].map((r) => { const a: RGB = [lin(r), lin(140), lin(2)]; const o = colourAfter(a, scale(a, k)); return o[1] / o[0]; });
+      // The input itself differs by about 2.7% across these levels; brightening must not add to that.
+      expect(Math.max(...ratios) / Math.min(...ratios)).toBeLessThan(1.05);
+    }
+  });
+
   it('is written to GLSL', () => {
     expect(COLOUR_STEP_GLSL).toContain('vec3 colourAfter(vec3 before, vec3 after)');
     expect(COLOUR_STEP_GLSL).not.toMatch(/undefined|NaN/);
