@@ -1,12 +1,15 @@
 import type { PhotoMeta } from '../library/db';
 import { isTouchDevice } from './touch';
 
-interface Handlers { onSelect: (id: string) => void; onRemove: (id: string) => void }
+interface Handlers { onSelect: (id: string) => void; onRemove: (id: string) => void; onJeaniusAll?: () => void }
 
 /** Row of thumbnails under the photo: click to switch photos, with a remove control for the current one. */
 export class Filmstrip {
   private info = document.createElement('span');
   private removeBtn = document.createElement('button');
+  private jeaniusBtn = document.createElement('button');
+  private count = 0;
+  private jeaniusArmed = 0;
   private list = document.createElement('div');
   private urls = new Map<string, string>();
   private current: string | null = null;
@@ -18,12 +21,42 @@ export class Filmstrip {
     this.info.setAttribute('role', 'status');
     this.removeBtn.className = 'link';
     this.removeBtn.addEventListener('click', () => this.clickRemove());
-    bar.append(this.info, this.removeBtn);
+    this.jeaniusBtn.className = 'link';
+    this.jeaniusBtn.title = "Set every photo's levels in Jean's style. The sliders stay editable afterwards.";
+    this.jeaniusBtn.addEventListener('click', () => this.clickJeanius());
+    const actions = document.createElement('span'); actions.className = 'film-actions';
+    actions.append(this.jeaniusBtn, this.removeBtn);
+    bar.append(this.info, actions);
     this.list.className = 'film-list';
     this.list.setAttribute('role', 'listbox');
     this.list.setAttribute('aria-label', 'Photos in your library');
     root.append(bar, this.list);
     this.disarm();
+    this.disarmJeanius();
+  }
+
+  /** Applying to every photo takes two clicks, as it replaces their Levels. */
+  private clickJeanius() {
+    if (!this.count || !this.handlers.onJeaniusAll) return;
+    if (!this.jeaniusArmed) {
+      this.jeaniusBtn.textContent = `${isTouchDevice() ? 'Tap' : 'Click'} again: Jeanius on ${this.count} photo${this.count === 1 ? '' : 's'}`;
+      this.jeaniusArmed = window.setTimeout(() => this.disarmJeanius(), 4000);
+      return;
+    }
+    this.disarmJeanius();
+    this.handlers.onJeaniusAll();
+  }
+
+  private disarmJeanius() {
+    clearTimeout(this.jeaniusArmed); this.jeaniusArmed = 0;
+    this.jeaniusBtn.textContent = 'Jeanius all';
+  }
+
+  /** While a batch runs, the strip's buttons wait. */
+  setBusy(on: boolean) {
+    this.root.classList.toggle('busy', on);
+    this.jeaniusBtn.disabled = on; this.removeBtn.disabled = on;
+    for (const b of this.list.querySelectorAll<HTMLButtonElement>('.film-item')) b.disabled = on;
   }
 
   /** Remove takes two clicks, so a slip cannot delete a photo. */
@@ -100,6 +133,8 @@ export class Filmstrip {
   }
 
   setInfo(count: number, extra = '') {
+    this.count = count;
+    this.jeaniusBtn.hidden = !count || !this.handlers.onJeaniusAll;
     this.info.textContent = `${count} photo${count === 1 ? '' : 's'}${extra ? ` · ${extra}` : ''}`;
   }
 }

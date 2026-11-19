@@ -9,6 +9,9 @@ import { LevelsEditor, type LevelsClip } from './ui/levels';
 import { COLOR, LIGHT, buildSliders, type ClipView } from './ui/sliders';
 import { setupChat } from './ui/chat';
 import { isTouchDevice } from './ui/touch';
+import { jeaniusLevels, type RGBAImage } from './jeanius';
+import { makeZip, uniqueNames } from './zip';
+import { pickFolder, saveInto } from './export-folder';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const stage = $('stage'), view = $<HTMLCanvasElement>('view'), empty = $('empty'), badge = $('badge'), notice = $('notice');
@@ -16,7 +19,7 @@ const fileInput = $<HTMLInputElement>('file');
 
 const store = new Store();
 let levelsClip: LevelsClip = null;
-const levelsEditor = new LevelsEditor($('levels'), store, (c) => { if (JSON.stringify(c) !== JSON.stringify(levelsClip)) { levelsClip = c; schedule(); } });
+const levelsEditor = new LevelsEditor($('levels'), store, (c) => { if (JSON.stringify(c) !== JSON.stringify(levelsClip)) { levelsClip = c; schedule(); } }, () => applyJeanius());
 let clipView: ClipView | null = null;
 buildSliders($('color-sliders'), store, COLOR);
 buildSliders($('sliders'), store, LIGHT, (v) => { if (v !== clipView) { clipView = v; schedule(); } });
@@ -25,7 +28,11 @@ let pipeline: Pipeline | null = null;
 let fileName = 'photo';
 
 const library = new Library();
-const filmstrip = new Filmstrip($('filmstrip'), { onSelect: (id) => void showPhoto(id), onRemove: (id) => void removePhoto(id) });
+const filmstrip = new Filmstrip($('filmstrip'), {
+  onSelect: (id) => { if (!batch) void showPhoto(id); },
+  onRemove: (id) => { if (!batch) void removePhoto(id); },
+  onJeaniusAll: () => void jeaniusAll(),
+});
 let currentId: string | null = null; // photo on screen
 let loadingPhoto = false;            // true while a photo's saved settings are being applied
 let dirty = false;                   // settings changed since the last save
@@ -33,6 +40,8 @@ let saveTimer = 0;
 let loadToken = 0;
 let showOriginal = false;
 let queued = false;
+let analysis: RGBAImage | null = null; // the open photo's unedited pixels, for Jeanius
+let batch = false;                     // true while Jeanius all or Export all works through the library
 
 let noticeTimer = 0;
 function say(msg: string, ms = 5000) {
@@ -169,6 +178,7 @@ function display(source: ImageBitmap, name: string): boolean {
     return false;
   }
   pipeline.setImage(source);
+  analysis = pixelsOf(source);
   fileName = name.replace(/\.[^.]+$/, '') || 'photo';
   empty.hidden = true; view.hidden = false;
   fitPreview();
@@ -208,7 +218,7 @@ async function showPhoto(id: string) {
 }
 
 function showEmpty() {
-  currentId = null; remember(null);
+  currentId = null; remember(null); analysis = null;
   view.hidden = true; empty.hidden = false;
   levelsEditor.setHistogram(null);
   loadingPhoto = true; store.load(defaults()); loadingPhoto = false;
@@ -257,6 +267,7 @@ async function refreshLibraryInfo() {
     ? `${n} photo${n === 1 ? '' : 's'}, ${edited} with adjustments${used !== null ? ` · ${(used / 1048576).toFixed(used < 104857600 ? 1 : 0)} MB stored in this browser` : ''}. The backup holds the adjustments, not the photos.`
     : 'No photos yet.';
   $<HTMLButtonElement>('backup').disabled = !n;
+  $<HTMLButtonElement>('export-all').disabled = !n || batch;
   $<HTMLButtonElement>('restore').disabled = !n;
 }
 
@@ -348,6 +359,102 @@ function sampleImage() {
   g.lineTo(1200, 620); g.lineTo(0, 620); g.fill();
   for (let i = 0; i < 11; i++) { const v = Math.round((i / 10) * 255); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(40 + i * 60, 700, 60, 60); }
   c.toBlob((b) => { if (b) void addFiles([new File([b], 'test-image.png', { type: 'image/png' })]); }, 'image/png');
+}
+
+/** The photo's unedited pixels, scaled down to at most 1600 pixels on the long side (plenty for measuring). */
+function pixelsOf(source: ImageBitmap): RGBAImage | null {
+  try {
+    const s = Math.min(1, 1600 / Math.max(source.width, source.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(source.width * s)); c.height = Math.max(1, Math.round(source.height * s));
+    const g = c.getContext('2d', { willReadFrequently: true })!;
+    g.drawImage(source, 0, 0, c.width, c.height);
+    return { data: g.getImageData(0, 0, c.width, c.height).data, width: c.width, height: c.height };
+  } catch {
+    return null;
+  }
+}
+
+/** Jeanius: sets the red, green and blue Levels in Jean's style for the open photo. Every slider stays editable. */
+function applyJeanius(announce = true): boolean {
+  if (!analysis) return false;
+  const r = jeaniusLevels(analysis);
+  store.change((p) => {
+    p.levels.rgb = defaultLevels();
+    p.levels.r = { black: r.r.black, white: r.r.white, gamma: 1 };
+    p.levels.g = { black: r.g.black, white: r.g.white, gamma: 1 };
+    p.levels.b = { black: r.b.black, white: r.b.white, gamma: 1 };
+  });
+  store.commit();
+  if (announce) say(`Jeanius · Red ${r.r.black}–${r.r.white} · Green ${r.g.black}–${r.g.white} · Blue ${r.b.black}–${r.b.white}. ${r.why.join(' ')}`, 9000);
+  return true;
+}
+
+/** Runs `work` on every photo in the library in turn, then returns to the photo that was open. */
+async function eachPhoto(label: string, work: (index: number) => Promise<void>): Promise<number> {
+  if (batch || !library.photos.length) return 0;
+  batch = true;
+  filmstrip.setBusy(true);
+  for (const id of ['export-all', 'export-jpg', 'export-png']) $<HTMLButtonElement>(id).disabled = true;
+  const start = currentId, photos = [...library.photos];
+  let done = 0;
+  try {
+    for (const [i, p] of photos.entries()) {
+      filmstrip.setInfo(photos.length, `${label} ${i + 1} of ${photos.length}…`);
+      await showPhoto(p.id);
+      if (currentId !== p.id) continue; // could not open this one
+      await work(i);
+      done++;
+    }
+  } finally {
+    if (start && start !== currentId && library.get(start)) await showPhoto(start);
+    filmstrip.setInfo(library.photos.length);
+    filmstrip.setBusy(false);
+    for (const id of ['export-all', 'export-jpg', 'export-png']) $<HTMLButtonElement>(id).disabled = false;
+    batch = false;
+    void refreshLibraryInfo();
+  }
+  return done;
+}
+
+/** Jeanius all: every photo in the library gets its own Jeanius levels. */
+async function jeaniusAll() {
+  const n = await eachPhoto('Jeanius', async () => { if (applyJeanius(false)) await saveNow(); });
+  if (n) say(`Jeanius set the levels on ${n} photo${n === 1 ? '' : 's'}. Every slider can still be adjusted.`, 8000);
+}
+
+/**
+ * Export all: every photo, as edited, as full-size JPEGs. The user picks the folder first; browsers
+ * that cannot save into a folder (Safari, Firefox) get one ZIP file in their Downloads folder instead.
+ */
+async function exportAll() {
+  if (batch || !library.photos.length) return;
+  const folder = await pickFolder(); // asked first, while the click still counts as the user's
+  if (folder === null) return;       // they cancelled
+  const zipped: { name: string; data: Uint8Array<ArrayBuffer> }[] = [];
+  let saved = 0;
+  try {
+    await eachPhoto('Exporting', async () => {
+      const blob = await pipeline!.export(store.params, 'image/jpeg');
+      const name = `${fileName}-edited.jpg`;
+      if (folder === 'unsupported') zipped.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
+      else { await saveInto(folder, name, blob); saved++; }
+    });
+  } catch (err) {
+    say(`Export stopped${saved ? ` after ${saved} photo${saved === 1 ? '' : 's'}` : ''}: ${(err as Error).message}`, 10000);
+    return;
+  }
+  if (folder !== 'unsupported') {
+    if (saved) say(`Saved ${saved} photo${saved === 1 ? '' : 's'} into the folder "${folder.name}". Files already there were kept; new ones got a number added.`, 9000);
+    schedule();
+    return;
+  }
+  if (!zipped.length) return;
+  const names = uniqueNames(zipped.map((f) => f.name));
+  const zipName = `canvasshutter-export-${new Date().toISOString().slice(0, 10)}.zip`;
+  download(makeZip(zipped.map((f, i) => ({ name: names[i], data: f.data }))), zipName);
+  say(`This browser cannot save into a folder you choose, so the ${zipped.length} photo${zipped.length === 1 ? ' was' : 's were'} saved as one file, ${zipName}, in your Downloads folder. In Chrome or Edge you can pick the folder.`, 12000);
+  schedule();
 }
 
 /** Renders at full size and hands the file to the browser to save. Throws if there is no photo. */
@@ -478,6 +585,7 @@ for (const d of document.querySelectorAll<HTMLDetailsElement>('details.section')
 
 $('export-png').addEventListener('click', () => exportAs('image/png'));
 $('export-jpg').addEventListener('click', () => exportAs('image/jpeg'));
+$('export-all').addEventListener('click', () => void exportAll());
 
 const before = $('before');
 before.addEventListener('pointerdown', () => setOriginal(true));
@@ -501,7 +609,7 @@ addEventListener('keydown', (e) => {
   }
   else if (!typing && !mod && e.key === '\\') setOriginal(true);
   else if (!typing && !mod && e.key.toLowerCase() === 'o') fileInput.click();
-  else if (!mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target as HTMLElement).closest?.('input, select, [role=slider]')) {
+  else if (!batch && !mod && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target as HTMLElement).closest?.('input, select, [role=slider]')) {
     // Left/Right step through the library when no slider or box has the keyboard.
     const i = library.photos.findIndex((p) => p.id === currentId);
     const next = library.photos[i + (e.key === 'ArrowRight' ? 1 : -1)];
