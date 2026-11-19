@@ -7,6 +7,7 @@ type Handle = 'black' | 'mid' | 'white';
 export type LevelsClip = { view: 'high' | 'low'; channel: Channel } | null;
 
 const NAMES: Record<Channel, string> = { rgb: 'RGB', r: 'Red', g: 'Green', b: 'Blue' };
+const SHORT: Record<Channel, string> = { rgb: 'RGB', r: 'R', g: 'G', b: 'B' };
 const HIST: Record<Channel, keyof Histogram> = { rgb: 'l', r: 'r', g: 'g', b: 'b' };
 const FILL: Record<Channel, string> = { rgb: '#c9c9cf', r: '#ff6b61', g: '#5fd27a', b: '#6aa5ff' };
 const LABEL: Record<Handle, string> = { black: 'Black point', mid: 'Midtones', white: 'White point' };
@@ -20,7 +21,10 @@ export class LevelsEditor {
   channel: Channel = 'rgb';
   private hist: Histogram | null = null; // the unedited photo, used by Auto
   private live: Histogram | null = null; // the photo as it looks now, drawn on screen
-  private select = document.createElement('select');
+  // Channel picker: a row of buttons rather than a drop-down menu. Safari's native menu could
+  // swallow the next press on a handle after a channel was picked.
+  private channelRow = document.createElement('div');
+  private channelButtons = {} as Record<Channel, HTMLButtonElement>;
   private auto = document.createElement('button');
   private jeanius = document.createElement('button');
   private canvas = document.createElement('canvas');
@@ -31,15 +35,15 @@ export class LevelsEditor {
 
   constructor(root: HTMLElement, private store: Store, private onClip: (c: LevelsClip) => void, private onJeanius?: () => void) {
     const top = document.createElement('div'); top.className = 'levels-top';
-    this.select.setAttribute('aria-label', 'Levels channel');
-    for (const ch of CHANNELS) this.select.append(new Option(NAMES[ch], ch));
-    this.select.addEventListener('change', () => {
-      this.channel = this.select.value as Channel;
-      // Let go of the menu once a channel is picked, so the next press on a handle is not spent
-      // taking focus away from it (Safari otherwise needs a second press).
-      this.select.blur();
-      this.update();
-    });
+    this.channelRow.className = 'levels-channels';
+    this.channelRow.setAttribute('role', 'group');
+    this.channelRow.setAttribute('aria-label', 'Levels channel');
+    for (const ch of CHANNELS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = `ch-${ch}`; b.title = NAMES[ch];
+      b.addEventListener('click', () => { this.channel = ch; this.update(); });
+      this.channelRow.append(b); this.channelButtons[ch] = b;
+    }
     this.auto.textContent = 'Auto';
     this.auto.title = 'Set the black and white points from the photo';
     this.auto.addEventListener('click', () => this.runAuto());
@@ -47,7 +51,7 @@ export class LevelsEditor {
     this.jeanius.className = 'jeanius';
     this.jeanius.title = "Set the red, green and blue levels in Jean's style, from the photo's subject";
     this.jeanius.addEventListener('click', () => this.onJeanius?.());
-    top.append(this.select, this.auto, this.jeanius);
+    top.append(this.channelRow, this.auto, this.jeanius);
 
     const plot = document.createElement('div'); plot.className = 'levels-plot';
     this.canvas.className = 'levels-canvas';
@@ -177,12 +181,15 @@ export class LevelsEditor {
       this.handles[h].setAttribute('aria-valuetext', text[h]);
       if (document.activeElement !== this.inputs[h]) this.inputs[h].value = text[h];
     }
-    if (this.select.value !== this.channel) this.select.value = this.channel;
-    // Only touch the menu when a label really changes: Safari rebuilds its native menu on every
-    // label change, and this runs on every step of a drag.
-    for (const o of this.select.options) {
-      const label = NAMES[o.value as Channel] + (isDefaultLevels(this.store.params.levels[o.value as Channel]) ? '' : ' •');
-      if (o.text !== label) o.text = label;
+    // A dot marks each channel that has been changed. Only touched when something differs, as this
+    // runs on every step of a drag.
+    for (const ch of CHANNELS) {
+      const b = this.channelButtons[ch], edited = !isDefaultLevels(this.store.params.levels[ch]);
+      const label = SHORT[ch] + (edited ? ' •' : ''), name = NAMES[ch] + (edited ? ' (changed)' : '');
+      if (b.textContent !== label) b.textContent = label;
+      if (b.getAttribute('aria-label') !== name) b.setAttribute('aria-label', name);
+      const on = String(ch === this.channel);
+      if (b.getAttribute('aria-pressed') !== on) b.setAttribute('aria-pressed', on);
     }
     this.auto.disabled = !this.hist;
     this.jeanius.disabled = !this.hist || !this.onJeanius;
