@@ -22,13 +22,14 @@ export class LevelsEditor {
   private live: Histogram | null = null; // the photo as it looks now, drawn on screen
   private select = document.createElement('select');
   private auto = document.createElement('button');
+  private jeanius = document.createElement('button');
   private canvas = document.createElement('canvas');
   private strip = document.createElement('div');
   private handles = {} as Record<Handle, HTMLElement>;
   private inputs = {} as Record<Handle, HTMLInputElement>;
   private dragging: Handle | null = null;
 
-  constructor(root: HTMLElement, private store: Store, private onClip: (c: LevelsClip) => void) {
+  constructor(root: HTMLElement, private store: Store, private onClip: (c: LevelsClip) => void, private onJeanius?: () => void) {
     const top = document.createElement('div'); top.className = 'levels-top';
     this.select.setAttribute('aria-label', 'Levels channel');
     for (const ch of CHANNELS) this.select.append(new Option(NAMES[ch], ch));
@@ -36,7 +37,11 @@ export class LevelsEditor {
     this.auto.textContent = 'Auto';
     this.auto.title = 'Set the black and white points from the photo';
     this.auto.addEventListener('click', () => this.runAuto());
-    top.append(this.select, this.auto);
+    this.jeanius.textContent = 'Jeanius';
+    this.jeanius.className = 'jeanius';
+    this.jeanius.title = "Set the red, green and blue levels in Jean's style, from the photo's subject";
+    this.jeanius.addEventListener('click', () => this.onJeanius?.());
+    top.append(this.select, this.auto, this.jeanius);
 
     const plot = document.createElement('div'); plot.className = 'levels-plot';
     this.canvas.className = 'levels-canvas';
@@ -166,6 +171,7 @@ export class LevelsEditor {
     this.select.value = this.channel;
     for (const o of this.select.options) o.text = NAMES[o.value as Channel] + (isDefaultLevels(this.store.params.levels[o.value as Channel]) ? '' : ' •');
     this.auto.disabled = !this.hist;
+    this.jeanius.disabled = !this.hist || !this.onJeanius;
     this.draw();
   }
 

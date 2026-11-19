@@ -50,6 +50,8 @@ footer.toolbar { margin-top: auto; border-bottom: none; border-top: 1px solid va
 #filmstrip { flex: none; background: var(--panel); border-top: 1px solid var(--line); }
 #filmstrip[hidden] { display: none; }
 .film-bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px 0; color: var(--muted); font-size: 12px; min-height: 24px; }
+.film-actions { display: flex; gap: 16px; align-items: center; }
+#filmstrip.busy .film-list { opacity: 0.6; }
 .film-list { display: flex; gap: 6px; padding: 6px 12px 10px; overflow-x: auto; }
 .film-item { position: relative; flex: none; padding: 0; height: 66px; min-width: 44px; border: 2px solid transparent; border-radius: 6px; background: #131316; overflow: hidden; }
 .film-item img { display: block; object-fit: cover; }
