@@ -70,11 +70,18 @@ button.link.danger { color: #ff8a80; }
 .hint.warn { color: #e9c46a; }
 
 .levels-top { display: flex; gap: 6px; margin-bottom: 8px; }
-.levels-top select { flex: 1; font: inherit; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; }
-.levels-top select:focus-visible, .levels-handle:focus-visible, .levels-value:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.levels-channels { flex: 1; display: flex; min-width: 0; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--raised); }
+.levels-channels button { flex: 1; min-width: 0; font: inherit; font-variant-numeric: tabular-nums; color: var(--muted); background: transparent; border: 0; border-radius: 0; padding: 5px 4px; cursor: pointer; white-space: nowrap; }
+.levels-channels button + button { border-left: 1px solid var(--line); }
+.levels-channels button[aria-pressed="true"] { color: var(--text); background: var(--line); }
+.levels-channels .ch-r[aria-pressed="true"] { color: #ff8a82; } .levels-channels .ch-g[aria-pressed="true"] { color: #7fe098; } .levels-channels .ch-b[aria-pressed="true"] { color: #8dbbff; }
+.levels-channels button:focus-visible, .levels-handle:focus-visible, .levels-value:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .levels-plot { padding: 0 9px; background: #131316; border-radius: 6px 6px 0 0; }
 .levels-canvas { display: block; width: 100%; height: 96px; }
 .levels-strip { position: relative; height: 18px; border-top: 1px solid var(--line); }
+/* Handles and slider tracks are controls, not text or pictures: in Safari an Option-drag would otherwise
+   start a text selection or a drag-and-drop and cancel the first press. */
+.levels-strip, .levels-handle, .slider-track { user-select: none; -webkit-user-select: none; -webkit-user-drag: none; -webkit-touch-callout: none; }
 .levels-handle { position: absolute; top: 1px; width: 18px; height: 16px; margin-left: -9px; cursor: ew-resize; touch-action: none; border-radius: 3px; }
 .levels-handle::before, .levels-handle::after { content: ""; position: absolute; inset: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .levels-handle::before { background: #8b8b96; }
@@ -192,8 +199,8 @@ details.sub li + li { margin-top: 5px; }
   .check { min-height: 40px; }
   .check input { width: 20px; height: 20px; }
   /* iPhones zoom the page when a box with text smaller than 16px is tapped. */
-  .slider-value, .levels-value, .levels-top select { font-size: 16px; }
-  .levels-top select { min-height: 40px; }
+  .slider-value, .levels-value { font-size: 16px; }
+  .levels-channels button { min-height: 40px; }
   .levels-value { width: 68px; padding: 6px; }
   #chat select, #chat-input, #key-input { font-size: 16px; min-height: 40px; } /* 16px again, so iPhones do not zoom in */
   details.sub > summary { font-size: 12.5px; padding: 6px 0; }

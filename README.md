@@ -14,8 +14,10 @@ browser; nothing is uploaded to a server.
 - **Levels** with black, midtone and white handles per channel (RGB, Red, Green, Blue), an Auto
   button, and a clipping view: hold Option/Alt while dragging the white or black handle to see
   only what is clipping.
-- **Light**: Exposure, Contrast, Highlights, Shadows, Whites, Blacks. The five tone sliders share
-  one response, so they cannot fight each other.
+- **Light**: Exposure, Contrast, Highlights, Shadows, Whites, Blacks. Highlights and Shadows are
+  local: each part of the photo is adjusted according to how bright its surroundings are, so a
+  dark doorway on a sunny street is lifted more than the same tone in a night scene. Contrast,
+  Whites and Blacks share one tone curve, so they cannot fight each other.
 - **Color**: Temp, Tint, Vibrance, Saturation.
 - **Photo library**: add many photos at once; each keeps its own adjustments, saved automatically
   in the browser. A filmstrip switches between them.
