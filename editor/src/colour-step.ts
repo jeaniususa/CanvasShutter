@@ -9,8 +9,8 @@
  * This step re-applies the brightness change channel by channel along the same white-holding
  * curve that Exposure uses (src/exposure.ts). The brightest channel lands exactly where the
  * brightness steps put it; the weaker channels move along the curve by the same internal amount,
- * scaled by UP when brightening and DOWN when darkening. When brightening, the internal amount is
- * measured on the colour's luminance, which stays steady where one channel is clipped and noisy. Because the curve flattens toward white,
+ * scaled by UP when brightening and DOWN when darkening. The internal amount is measured on the
+ * colour's luminance, which stays steady where one channel is clipped and noisy. Because the curve flattens toward white,
  * this mostly affects bright colours; dark and mid colours keep their saturation.
  *
  * Darkening is kept moderate (DOWN 1). The measurements show darkened bright colours gaining more
@@ -60,13 +60,12 @@ export function colourAfter(before: [number, number, number], after: [number, nu
   const m0 = Math.max(...before), m1 = Math.max(...after);
   if (m0 <= 0 || m1 <= 0 || Math.abs(m1 - m0) < 1e-7) return after;
   const inner = (c: number) => Sinv(Math.min(c, 1) * SPAN);
-  // How far the brightness moved. When brightening it is measured on the colour's luminance rather
-  // than its brightest channel: a channel at white (jittering by a level of JPEG noise) gets cut
-  // off there, which made neighbouring pixels look moved by different amounts and left a mottled
-  // texture. Darkening never reaches white, and measuring it on the brightest channel keeps
-  // JPEG skies smoother, so it stays that way.
+  // How far the brightness moved, measured on the colour's luminance rather than its brightest
+  // channel. Next to white the brightest channel jitters by a level of JPEG noise, and measuring on
+  // it made neighbouring pixels look moved by different amounts: a mottled ring when brightening
+  // (the channel is cut off at white) and blocks when darkening (the curve is steep there).
   const y0 = before[0] * LUMA[0] + before[1] * LUMA[1] + before[2] * LUMA[2];
-  let k = m1 > m0 ? inner(y0 * m1 / m0) / inner(y0) : inner(m1) / inner(m0);
+  let k = inner(y0 * m1 / m0) / inner(y0);
   const clipped = Math.min(1, Math.max(0, (m0 - CLIP_FROM) / (CLIP_TO - CLIP_FROM)));
   k = Math.pow(k, k >= 1 ? UP : DOWN + CLIPPED_DOWN * clipped * clipped * (3 - 2 * clipped));
   const moved = before.map((c) => S(k * inner(c)));
@@ -86,9 +85,7 @@ vec3 colourAfter(vec3 before, vec3 after) {
   float m0 = max(before.r, max(before.g, before.b)), m1 = max(after.r, max(after.g, after.b));
   if (m0 <= 0.0 || m1 <= 0.0 || abs(m1 - m0) < 1e-7) return after;
   float y0 = dot(before, vec3(${LUMA.map(f).join(', ')}));
-  float k = m1 > m0
-    ? curveSinv(min(y0 * m1 / m0, 1.0) * ${f(SPAN)}) / curveSinv(min(y0, 1.0) * ${f(SPAN)})
-    : curveSinv(m1 * ${f(SPAN)}) / curveSinv(min(m0, 1.0) * ${f(SPAN)});
+  float k = curveSinv(min(y0 * m1 / m0, 1.0) * ${f(SPAN)}) / curveSinv(min(y0, 1.0) * ${f(SPAN)});
   k = pow(k, k >= 1.0 ? ${f(UP)} : ${f(DOWN)} + ${f(CLIPPED_DOWN)} * smoothstep(${f(CLIP_FROM)}, ${f(CLIP_TO)}, m0));
   vec3 b = min(before, vec3(1.0)) * ${f(SPAN)};
   vec3 moved = vec3(curveS(k * curveSinv(b.r)), curveS(k * curveSinv(b.g)), curveS(k * curveSinv(b.b)));
