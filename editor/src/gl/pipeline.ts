@@ -1,4 +1,4 @@
-import type { Params } from '../state';
+import { isDefaultParams, type Params } from '../state';
 import { buildToneLut } from '../tone';
 import { EXPOSURE_GLSL } from '../exposure';
 import { COLOUR_STEP_GLSL } from '../colour-step';
@@ -7,6 +7,8 @@ import { LOCAL_TONE_GLSL, SURROUND_SIGMA, FLOOR_STOPS } from '../local-tone';
 const TONE_SIZE = 1024;
 /** Longer side, in pixels, of the small brightness map used for local Highlights and Shadows. */
 const MASK_SIZE = 128;
+/** Width of the nearby-colour blur used to rebuild clipped highlights, as a fraction of the longer side. */
+const COLOUR_SIGMA = 0.05;
 /** Strength of the Color sliders (temp, tint, vibrance, saturation): 1.5x on the positive side, 1x on the negative side. */
 export const COLOR_GAIN = 1.5;
 const colorAmount = (v: number) => (v / 100) * (v > 0 ? COLOR_GAIN : 1);
@@ -55,10 +57,16 @@ float decMask(float v) { return v * ${FLOOR_STOPS.toFixed(1)}; }
 float encMask(float L) { return L; }
 float decMask(float v) { return v; }
 #endif
+
+// How far a colour has lost its hue to clipping: 0 while at most one channel is at white, 1 once
+// two are (the middle channel decides). Such pixels have no reliable colour of their own.
+float clippedness(vec3 c) { float mid = max(min(c.r, c.g), min(max(c.r, c.g), c.b)); return smoothstep(0.7, 0.97, mid); }
 `;
 
 // Pass 1 of the brightness map: the photo, shrunk, after levels, white balance and exposure, as
-// log2 brightness. u_img here is a copy of the photo already shrunk to the map's size.
+// log2 brightness (red channel). The other three channels hold the photo's colour (chromaticity,
+// weighted), counting only pixels that are reasonably bright and not clipped, so that clipped
+// highlights can borrow the colour around them. u_img is a copy of the photo already shrunk.
 const MASK_FRAG = (head: string) => `#version 300 es
 ${head}
 precision highp float;
@@ -67,31 +75,39 @@ ${COMMON}
 in vec2 v_uv;
 out vec4 o;
 void main() {
-  vec3 lin = balance(toLinear(levels(texture(u_img, v_uv).rgb)));
+  vec3 pre = whiteBalance(toLinear(levels(texture(u_img, v_uv).rgb)));
+  vec3 lin = expose(pre, u_ev);
   float y = dot(lin, vec3(0.2126, 0.7152, 0.0722));
-  o = vec4(encMask(log2(max(y, exp2(${FLOOR_STOPS.toFixed(1)})))), 0.0, 0.0, 1.0);
+  float sum = pre.r + pre.g + pre.b;
+  float w = sum > 0.0 ? (1.0 - clippedness(pre)) * smoothstep(0.02, 0.2, max(pre.r, max(pre.g, pre.b))) : 0.0;
+  vec2 xy = sum > 0.0 ? pre.rg / sum : vec2(0.0);
+  o = vec4(encMask(log2(max(y, exp2(${FLOOR_STOPS.toFixed(1)})))), w * xy, w);
 }`;
 
-// Passes 2 and 3: a wide Gaussian blur, one direction at a time, so each pixel's value becomes
-// the brightness of its surroundings.
+// Passes 2 and 3: Gaussian blurs, one direction at a time. Brightness (red) is blurred widely, so
+// each pixel's value becomes the brightness of its surroundings; colour (green, blue, alpha) more
+// narrowly, so it stays the colour of what is nearby.
 const BLUR_FRAG = (head: string) => `#version 300 es
 ${head}
 precision highp float;
 uniform sampler2D u_src;
 uniform ivec2 u_dir;
-uniform float u_sigma;
+uniform float u_sigma, u_sigmaColour;
 ${COMMON}
 out vec4 o;
 void main() {
   ivec2 size = textureSize(u_src, 0), p = ivec2(gl_FragCoord.xy);
-  int r = int(ceil(3.0 * u_sigma));
-  float sum = 0.0, wsum = 0.0;
+  int r = int(ceil(3.0 * max(u_sigma, u_sigmaColour)));
+  float sum = 0.0, wsum = 0.0, csum = 0.0;
+  vec3 col = vec3(0.0);
   for (int i = -r; i <= r; i++) {
+    vec4 t = texelFetch(u_src, clamp(p + u_dir * i, ivec2(0), size - 1), 0);
     float w = exp(-float(i * i) / (2.0 * u_sigma * u_sigma));
-    sum += w * decMask(texelFetch(u_src, clamp(p + u_dir * i, ivec2(0), size - 1), 0).r);
-    wsum += w;
+    float wc = exp(-float(i * i) / (2.0 * u_sigmaColour * u_sigmaColour));
+    sum += w * decMask(t.r); wsum += w;
+    col += wc * t.gba; csum += wc;
   }
-  o = vec4(encMask(sum / wsum), 0.0, 0.0, 1.0);
+  o = vec4(encMask(sum / wsum), col / csum);
 }`;
 
 // Processing order: levels -> white balance and exposure (in linear light, src/exposure.ts) ->
@@ -109,17 +125,44 @@ uniform float u_hl, u_sh;   // highlights and shadows, -100..100 (0 and 0 = loca
 uniform float u_vib, u_sat; // -1..0 for negative settings, 0..COLOR_GAIN for positive
 uniform int u_mode; // 0 = full, 1 = original, 3/4 = clipping after all edits, 5/6 = clipping after levels
 uniform vec3 u_clipMask;                          // which channels the levels clipping view shows
+uniform float u_recon;      // 1 when darkening: rebuild the colour of clipped highlights from nearby
+uniform float u_smooth;     // 1 once the photo has edits: smooth flat areas on the way in, dither on the way out
 ${COMMON}
 ${LOCAL_TONE_GLSL}
 ${COLOUR_STEP_GLSL}
 in vec2 v_uv;
 out vec4 o;
 
+// A small, fixed pseudo-random number per position (0..1).
+float hash12(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+
+// Debanding. A JPEG keeps 256 levels per channel and stores smooth areas such as skies in 8x8
+// blocks that differ by a level or two. Strong edits stretch those steps into visible bands and
+// blocks. Where every nearby sample is within DEBAND_LIMIT of this pixel (a flat area, not
+// texture or an edge), the pixel is replaced by their average, which restores the in-between
+// tones the file rounded away. Five rings (8 to 64 photo pixels; wide glows have steps tens of
+// pixels apart), each turned by a per-pixel random angle so no pattern forms.
+const float DEBAND_LIMIT = 3.0 / 255.0;
+vec3 debanded(vec2 uv) {
+  vec3 c = texture(u_img, uv).rgb;
+  vec2 size = vec2(textureSize(u_img, 0));
+  float a = hash12(uv * size) * 6.2831853;
+  const float RINGS[5] = float[](8.0, 16.0, 32.0, 48.0, 64.0);
+  for (int i = 0; i < 5; i++) {
+    a += 2.39996; // golden angle: each ring points a different way
+    vec2 d = vec2(cos(a), sin(a)) * RINGS[i] / size, e = vec2(-d.y * size.y, d.x * size.x) / size; // d turned 90 degrees in photo pixels
+    vec3 s1 = texture(u_img, uv + d).rgb, s2 = texture(u_img, uv - d).rgb, s3 = texture(u_img, uv + e).rgb, s4 = texture(u_img, uv - e).rgb;
+    vec3 far = max(max(abs(s1 - c), abs(s2 - c)), max(abs(s3 - c), abs(s4 - c)));
+    if (max(far.r, max(far.g, far.b)) < DEBAND_LIMIT) c = (s1 + s2 + s3 + s4) * 0.25;
+  }
+  return c;
+}
+
 
 void main() {
   vec4 t = texture(u_img, v_uv);
   if (u_mode == 1) { o = vec4(t.rgb, 1.0); return; }
-  vec3 lv = levels(t.rgb);
+  vec3 lv = levels(u_smooth > 0.0 ? debanded(v_uv) : t.rgb);
   // Levels clipping views: black with only clipped-to-white channels showing, or white with
   // clipped-to-black channels removed.
   if (u_mode == 5) { o = vec4(step(vec3(254.5 / 255.0), lv) * u_clipMask, 1.0); return; }
@@ -135,7 +178,31 @@ void main() {
   }
   // Bright colours soften toward white when brightened and regain colour when darkened
   // (src/colour-step.ts). Only the brightness steps above count; levels and white balance do not.
-  vec3 c = toDisplay(colourAfter(base, lin));
+  vec3 col = colourAfter(base, lin);
+  // Clipped highlights. Where two or more channels hit white in the photo (a blown sun, its yellow
+  // ring), the file has lost the real colour; darkening such pixels as they are turns them grey or
+  // olive. As they are darkened, they take on the colour of the unclipped area around them instead,
+  // at their own brightness, fading in over the first 1.5 stops of darkening.
+  if (u_recon > 0.0) {
+    float m0 = max(base.r, max(base.g, base.b)), m1 = max(col.r, max(col.g, col.b));
+    float amount = clippedness(base) * clamp(-log2(max(m1, 1e-6) / max(m0, 1e-6)) / 1.5, 0.0, 1.0);
+    if (amount > 0.0) {
+      vec4 near = texture(u_mask, vec2(v_uv.x, 1.0 - v_uv.y));
+      if (near.a > 1e-4) {
+        vec3 hue = max(vec3(near.g, near.b, near.a - near.g - near.b) / near.a, vec3(0.0));
+        // Same brightness as the pixel has now, in the nearby hue. Where that hue cannot be this
+        // bright without passing white, it is paled toward white just enough to fit, so a blown
+        // sun stays the brightest thing around it instead of turning into a dark disc.
+        const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+        float y = dot(col, LUMA);
+        vec3 target = hue * (y / max(dot(hue, LUMA), 1e-6));
+        float top = max(target.r, max(target.g, target.b));
+        if (top > 1.0) target = mix(vec3(y), target, (1.0 - y) / max(top - y, 1e-6));
+        col = mix(col, target, amount * clamp(near.a / 0.05, 0.0, 1.0));
+      }
+    }
+  }
+  vec3 c = toDisplay(col);
   float y = clamp(dot(c, vec3(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
   float y2 = texture(u_tone, vec2((y * 1023.0 + 0.5) / 1024.0, 0.5)).r;
   // Scale colour by the brightness change (keeps hue); near black, shift instead so blacks can lift.
@@ -149,6 +216,9 @@ void main() {
   c = clamp(c, 0.0, 1.0);
   // Clipping views: black with only the channels that have hit pure white showing,
   // or white with the channels that have hit pure black removed.
+  // Dithering: about one level of fine noise before the result is rounded to 8 bits, so smooth
+  // gradients do not turn back into steps. Not in the clipping views, which must stay exact.
+  if (u_smooth > 0.0 && u_mode == 0) c = clamp(c + (hash12(gl_FragCoord.xy) + hash12(gl_FragCoord.xy + 71.3) - 1.0) / 255.0, 0.0, 1.0);
   if (u_mode == 3) c = step(vec3(254.5 / 255.0), c);
   if (u_mode == 4) c = vec3(1.0) - step(c, vec3(0.5 / 255.0));
   o = vec4(c, 1.0);
@@ -194,9 +264,9 @@ export class Pipeline {
     this.maskProg = this.link(VERT, MASK_FRAG(head));
     this.blurProg = this.link(VERT, BLUR_FRAG(head));
     const shared = ['u_ev', 'u_temp', 'u_tint', 'u_lvMaster', 'u_lvBlack', 'u_lvWhite', 'u_lvInvGamma'];
-    for (const n of [...shared, 'u_img', 'u_tone', 'u_mask', 'u_hl', 'u_sh', 'u_vib', 'u_sat', 'u_mode', 'u_clipMask']) this.u[n] = gl.getUniformLocation(this.prog, n);
+    for (const n of [...shared, 'u_img', 'u_tone', 'u_mask', 'u_hl', 'u_sh', 'u_vib', 'u_sat', 'u_mode', 'u_clipMask', 'u_smooth', 'u_recon']) this.u[n] = gl.getUniformLocation(this.prog, n);
     for (const n of [...shared, 'u_img']) this.um[n] = gl.getUniformLocation(this.maskProg, n);
-    for (const n of ['u_src', 'u_dir', 'u_sigma']) this.ub[n] = gl.getUniformLocation(this.blurProg, n);
+    for (const n of ['u_src', 'u_dir', 'u_sigma', 'u_sigmaColour']) this.ub[n] = gl.getUniformLocation(this.blurProg, n);
     this.img = this.texture(gl.LINEAR);
     this.tone = this.texture(gl.LINEAR);
     this.small = this.texture(gl.LINEAR);
@@ -298,6 +368,7 @@ export class Pipeline {
     // the pair afterwards leaves the finished map in mask[0].
     gl.useProgram(this.blurProg);
     gl.uniform1f(this.ub.u_sigma, SURROUND_SIGMA * MASK_SIZE);
+    gl.uniform1f(this.ub.u_sigmaColour, COLOUR_SIGMA * MASK_SIZE);
     gl.uniform1i(this.ub.u_src, 0);
     const pass = (from: number, to: number, dir: [number, number]) => {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo[to]);
@@ -323,7 +394,9 @@ export class Pipeline {
     if (!this.imageWidth) return;
     const gl = this.gl;
     const local = mode !== 'original' && (p.highlights !== 0 || p.shadows !== 0);
-    if (local) this.updateMask(p);
+    // Darkening can rebuild clipped highlights from the colour map, which lives in the same textures.
+    const recon = mode !== 'original' && (p.exposure < 0 || p.highlights < 0 || p.shadows < 0);
+    if (local || recon) this.updateMask(p);
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.useProgram(this.prog);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.img); gl.uniform1i(this.u.u_img, 0);
@@ -344,6 +417,9 @@ export class Pipeline {
     gl.uniform1f(this.u.u_sat, colorAmount(p.saturation));
     gl.uniform3f(this.u.u_clipMask, ...clipMask);
     gl.uniform1i(this.u.u_mode, MODES[mode]);
+    // An unedited photo is shown and exported exactly as it is.
+    gl.uniform1f(this.u.u_smooth, isDefaultParams(p) ? 0 : 1);
+    gl.uniform1f(this.u.u_recon, recon ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 

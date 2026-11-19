@@ -4,17 +4,17 @@
  * Exposure and Highlights/Shadows decide how much brighter or darker each pixel gets, and apply
  * that to all three channels together, which keeps the colour's saturation exactly the same. Real
  * light does not behave like that near white: as a bright colour is pushed toward white its weaker
- * channels catch up and it softens.
+ * channels catch up and it softens, and when it is brought down it regains its colour.
  *
  * This step re-applies the brightness change channel by channel along the same white-holding
  * curve that Exposure uses (src/exposure.ts). The brightest channel lands exactly where the
  * brightness steps put it; the weaker channels move along the curve by the same internal amount,
- * scaled by UP. Because the curve flattens toward white, this mostly affects bright colours; dark
- * and mid colours keep their saturation.
+ * scaled by UP when brightening and DOWN when darkening. Because the curve flattens toward white,
+ * this mostly affects bright colours; dark and mid colours keep their saturation.
  *
- * Only brightening is handled. Darkening keeps saturation as it is: the measurements show that
- * darkened bright colours gain colour in a way that depends strongly on hue, which this model does
- * not capture, and a hue-blind version made smooth skies blotchy.
+ * Darkening is kept moderate (DOWN 1). The measurements show darkened bright colours gaining more
+ * colour than this, in a way that depends on hue; a stronger hue-blind version over-coloured
+ * smooth skies. It relies on the debanding in the pipeline to keep JPEG skies smooth.
  *
  * The curve is used only up to SPAN of the way to white. Right next to white it is extremely
  * steep, and photos often have a channel sitting at 254-255 (a sunset's red, for example): there,
@@ -24,10 +24,20 @@
  * Tuned against test-chart measurements of tinted ramps under Exposure, Highlights and Shadows
  * (when brightening: Exposure +1 0.16 stop against 0.45 for leaving saturation unchanged,
  * Highlights +100 0.10 against 0.34, Shadows +100 0.07 against 0.14).
+ * Clipped highlights (two channels at white) are handled separately in the pipeline.
  */
 import { S, Sinv } from './exposure';
 
 export const UP = 1.25;
+/** Strength when darkening (0 = keep saturation as it is). */
+export const DOWN = 1.0;
+/**
+ * Extra darkening strength for colours whose brightest channel is clipped (at white in the photo).
+ * That channel was really brighter than the file says, so the colour was really more saturated;
+ * as it is darkened it should get richer than its stored ratios suggest (a sunset's yellow-orange
+ * ring turns amber, not mustard or olive).
+ */
+export const CLIPPED_DOWN = 1.5;
 /** How far toward white the curve is used (see above). */
 export const SPAN = 0.85;
 /** Colours whose brightest channel stays below this (linear) are eased out of the step. */
@@ -36,14 +46,15 @@ const FLOOR = 1e-6;
 
 /**
  * The colour a pixel should have after its brightness changed from `before` to `after` (both
- * linear RGB, `after` being `before` scaled evenly). Returns `after` unchanged unless it got brighter.
+ * linear RGB, `after` being `before` scaled evenly). Returns `after` unchanged when nothing moved.
  */
 export function colourAfter(before: [number, number, number], after: [number, number, number]): [number, number, number] {
   const m0 = Math.max(...before), m1 = Math.max(...after);
-  if (m0 <= 0 || m1 <= m0 + 1e-7) return after;
+  if (m0 <= 0 || m1 <= 0 || Math.abs(m1 - m0) < 1e-7) return after;
   const inner = (c: number) => Sinv(Math.min(c, 1) * SPAN);
   let k = inner(m1) / inner(m0);
-  k = Math.pow(k, UP);
+  const clipped = Math.min(1, Math.max(0, (m0 - 0.95) / 0.05));
+  k = Math.pow(k, k >= 1 ? UP : DOWN + CLIPPED_DOWN * clipped * clipped * (3 - 2 * clipped));
   const moved = before.map((c) => S(k * inner(c)));
   const top = Math.max(...moved);
   const w = Math.min(1, Math.max(m0, m1) / FADE_IN) ** 2;
@@ -59,9 +70,9 @@ const f = (x: number) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 export const COLOUR_STEP_GLSL = `
 vec3 colourAfter(vec3 before, vec3 after) {
   float m0 = max(before.r, max(before.g, before.b)), m1 = max(after.r, max(after.g, after.b));
-  if (m0 <= 0.0 || m1 <= m0 + 1e-7) return after;
+  if (m0 <= 0.0 || m1 <= 0.0 || abs(m1 - m0) < 1e-7) return after;
   float k = curveSinv(min(m1, 1.0) * ${f(SPAN)}) / curveSinv(min(m0, 1.0) * ${f(SPAN)});
-  k = pow(k, ${f(UP)});
+  k = pow(k, k >= 1.0 ? ${f(UP)} : ${f(DOWN)} + ${f(CLIPPED_DOWN)} * smoothstep(0.95, 1.0, m0));
   vec3 b = min(before, vec3(1.0)) * ${f(SPAN)};
   vec3 moved = vec3(curveS(k * curveSinv(b.r)), curveS(k * curveSinv(b.g)), curveS(k * curveSinv(b.b)));
   float top = max(moved.r, max(moved.g, moved.b));

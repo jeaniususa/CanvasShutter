@@ -8,9 +8,10 @@
  *
  * S maps 0..infinity onto 0..1 and only reaches 1 at infinity, so when brightening pure white
  * never moves and nothing can be pushed past white. When darkening, white sits just inside the
- * curve (darkenWhite), so it barely moves at normal settings (0.02 stop at -1) and comes down
- * smoothly with everything else at strong settings, instead of staying at full white while the
- * tones just below it drop away (which would draw a hard edge around blown highlights). In the darks S behaves like x^p, so one stop of
+ * curve (darkenWhite), so it barely moves at normal settings (0.1 stop at -1) and comes down with
+ * everything else at strong settings. Holding it fully would make the curve so steep next to white
+ * that one level of a JPEG could become eight, drawing hard edges and blocks around bright areas;
+ * the table keeps that stretch to about three levels at every setting. In the darks S behaves like x^p, so one stop of
  * exposure moves dark tones about p stops; the change tapers smoothly toward white. When
  * brightening, the change also fades out in the deepest blacks (below about TOE in linear light),
  * so pure black is not lifted into noise.
@@ -23,8 +24,17 @@ export const Q = 1.95;
 export const TOE = 0.002;
 /** Inputs at or above this are treated as white. */
 const NEAR_WHITE = 0.999999;
-/** Where white sits on the curve when darkening by `stops` (negative): 0.995 down to -1, easing to 0.9 at -5. */
-export const darkenWhite = (stops: number) => 0.995 - 0.095 * Math.min(1, Math.max(0, (-stops - 1) / 4));
+/**
+ * Where white sits on the curve when darkening by `stops` (negative), as [stops, position] points
+ * joined by straight lines. Chosen so one input level near white never becomes more than about
+ * three output levels, while darkening stays steady all the way down.
+ */
+export const DARKEN_WHITE: ReadonlyArray<readonly [number, number]> = [[0, 1], [-0.5, 0.999], [-1, 0.975], [-1.5, 0.9], [-2, 0.876], [-2.5, 0.878], [-3, 0.89], [-4, 0.915], [-5, 0.935]];
+export function darkenWhite(stops: number): number {
+  const t = DARKEN_WHITE, e = Math.max(t[t.length - 1][0], Math.min(0, stops));
+  for (let i = 1; i < t.length; i++) if (e >= t[i][0]) { const [x0, y0] = t[i - 1], [x1, y1] = t[i]; return y0 + (y1 - y0) * (e - x0) / (x1 - x0); }
+  return t[t.length - 1][1];
+}
 
 /** The curve S (internal scale -> 0..1) and its inverse. Shared with src/colour-step.ts. */
 export const S = (x: number) => Math.pow(Math.pow(x, Q) / (1 + Math.pow(x, Q)), P / Q);
@@ -47,12 +57,19 @@ const f = (x: number) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
  * channel can pass white. Built from the same constants as exposeLevel.
  */
 export const EXPOSURE_GLSL = `
+const float DW_X[${DARKEN_WHITE.length}] = float[](${DARKEN_WHITE.map(([x]) => f(x)).join(', ')});
+const float DW_Y[${DARKEN_WHITE.length}] = float[](${DARKEN_WHITE.map(([, y]) => f(y)).join(', ')});
+float darkenWhite(float stops) {
+  float e = clamp(stops, DW_X[${DARKEN_WHITE.length - 1}], 0.0);
+  for (int i = 1; i < ${DARKEN_WHITE.length}; i++) if (e >= DW_X[i]) return mix(DW_Y[i - 1], DW_Y[i], (e - DW_X[i - 1]) / (DW_X[i] - DW_X[i - 1]));
+  return DW_Y[${DARKEN_WHITE.length - 1}];
+}
 float curveS(float x) { float xq = pow(x, ${f(Q)}); return pow(xq / (1.0 + xq), ${f(P / Q)}); }
 float curveSinv(float v) { float r = pow(clamp(v, 0.0, ${f(NEAR_WHITE)}), ${f(Q / P)}); return pow(r / (1.0 - r), ${f(1 / Q)}); }
 float exposeLevel(float v, float stops) {
   if (stops == 0.0 || v <= 0.0) return max(v, 0.0);
   v = min(v, 1.0);
-  float w = stops < 0.0 ? 0.995 - 0.095 * clamp((-stops - 1.0) / 4.0, 0.0, 1.0) : 1.0; // darkenWhite
+  float w = stops < 0.0 ? darkenWhite(stops) : 1.0;
   float r = pow(min(v * w, ${f(NEAR_WHITE)}), ${f(Q / P)});
   float x = pow(r / (1.0 - r), ${f(1 / Q)}) * exp2(stops);
   float xq = pow(x, ${f(Q)});
