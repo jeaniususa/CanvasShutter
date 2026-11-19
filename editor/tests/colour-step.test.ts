@@ -75,6 +75,17 @@ describe('colour near white', () => {
     expect(a[1] / a[0]).toBeLessThan(b[1] / b[0]);
   });
 
+  it('treats neighbouring pixels alike where a clipped channel jitters (no mottling or blocks)', () => {
+    const lin = (c: number) => { const v = c / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    for (const k of [2 ** 0.15, 2 ** 0.4, 2 ** 0.7, 2 ** 1.5, 2 ** -0.5, 2 ** -1, 2 ** -2]) {
+      const ratios = [252, 253, 254, 255].map((r) => { const a: RGB = [lin(r), lin(140), lin(2)]; const o = colourAfter(a, scale(a, k)); return o[1] / o[0]; });
+      // The input itself differs by about 2.7% across these levels. Brightening must not add to that;
+      // darkening (which deliberately enriches clipped colours) may add a little (it was 28% when
+      // darkening was measured on the brightest channel).
+      expect(Math.max(...ratios) / Math.min(...ratios)).toBeLessThan(k > 1 ? 1.05 : 1.15);
+    }
+  });
+
   it('is written to GLSL', () => {
     expect(COLOUR_STEP_GLSL).toContain('vec3 colourAfter(vec3 before, vec3 after)');
     expect(COLOUR_STEP_GLSL).not.toMatch(/undefined|NaN/);

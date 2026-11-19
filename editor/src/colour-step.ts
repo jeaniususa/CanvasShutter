@@ -9,7 +9,8 @@
  * This step re-applies the brightness change channel by channel along the same white-holding
  * curve that Exposure uses (src/exposure.ts). The brightest channel lands exactly where the
  * brightness steps put it; the weaker channels move along the curve by the same internal amount,
- * scaled by UP when brightening and DOWN when darkening. Because the curve flattens toward white,
+ * scaled by UP when brightening and DOWN when darkening. The internal amount is measured on the
+ * colour's luminance, which stays steady where one channel is clipped and noisy. Because the curve flattens toward white,
  * this mostly affects bright colours; dark and mid colours keep their saturation.
  *
  * Darkening is kept moderate (DOWN 1). The measurements show darkened bright colours gaining more
@@ -28,7 +29,7 @@
  */
 import { S, Sinv } from './exposure';
 
-export const UP = 1.25;
+export const UP = 1.8;
 /** Strength when darkening (0 = keep saturation as it is). */
 export const DOWN = 1.0;
 /**
@@ -43,6 +44,13 @@ export const SPAN = 0.85;
 /** Colours whose brightest channel stays below this (linear) are eased out of the step. */
 export const FADE_IN = 0.2;
 const FLOOR = 1e-6;
+const LUMA = [0.2126, 0.7152, 0.0722] as const;
+/**
+ * Brightest-channel range over which a colour counts as clipped (linear; 0.6 is about 8-bit 203).
+ * Deliberately wide: in a photo the clipped area usually ends in a gentle slope from 255 down, and
+ * a narrow range would switch the effect off along a sharp, ragged line at the edge of it.
+ */
+const CLIP_FROM = 0.6, CLIP_TO = 1.0;
 
 /**
  * The colour a pixel should have after its brightness changed from `before` to `after` (both
@@ -52,8 +60,13 @@ export function colourAfter(before: [number, number, number], after: [number, nu
   const m0 = Math.max(...before), m1 = Math.max(...after);
   if (m0 <= 0 || m1 <= 0 || Math.abs(m1 - m0) < 1e-7) return after;
   const inner = (c: number) => Sinv(Math.min(c, 1) * SPAN);
-  let k = inner(m1) / inner(m0);
-  const clipped = Math.min(1, Math.max(0, (m0 - 0.95) / 0.05));
+  // How far the brightness moved, measured on the colour's luminance rather than its brightest
+  // channel. Next to white the brightest channel jitters by a level of JPEG noise, and measuring on
+  // it made neighbouring pixels look moved by different amounts: a mottled ring when brightening
+  // (the channel is cut off at white) and blocks when darkening (the curve is steep there).
+  const y0 = before[0] * LUMA[0] + before[1] * LUMA[1] + before[2] * LUMA[2];
+  let k = inner(y0 * m1 / m0) / inner(y0);
+  const clipped = Math.min(1, Math.max(0, (m0 - CLIP_FROM) / (CLIP_TO - CLIP_FROM)));
   k = Math.pow(k, k >= 1 ? UP : DOWN + CLIPPED_DOWN * clipped * clipped * (3 - 2 * clipped));
   const moved = before.map((c) => S(k * inner(c)));
   const top = Math.max(...moved);
@@ -71,8 +84,9 @@ export const COLOUR_STEP_GLSL = `
 vec3 colourAfter(vec3 before, vec3 after) {
   float m0 = max(before.r, max(before.g, before.b)), m1 = max(after.r, max(after.g, after.b));
   if (m0 <= 0.0 || m1 <= 0.0 || abs(m1 - m0) < 1e-7) return after;
-  float k = curveSinv(min(m1, 1.0) * ${f(SPAN)}) / curveSinv(min(m0, 1.0) * ${f(SPAN)});
-  k = pow(k, k >= 1.0 ? ${f(UP)} : ${f(DOWN)} + ${f(CLIPPED_DOWN)} * smoothstep(0.95, 1.0, m0));
+  float y0 = dot(before, vec3(${LUMA.map(f).join(', ')}));
+  float k = curveSinv(min(y0 * m1 / m0, 1.0) * ${f(SPAN)}) / curveSinv(min(y0, 1.0) * ${f(SPAN)});
+  k = pow(k, k >= 1.0 ? ${f(UP)} : ${f(DOWN)} + ${f(CLIPPED_DOWN)} * smoothstep(${f(CLIP_FROM)}, ${f(CLIP_TO)}, m0));
   vec3 b = min(before, vec3(1.0)) * ${f(SPAN)};
   vec3 moved = vec3(curveS(k * curveSinv(b.r)), curveS(k * curveSinv(b.g)), curveS(k * curveSinv(b.b)));
   float top = max(moved.r, max(moved.g, moved.b));

@@ -10,10 +10,11 @@ describe('exposure that holds white', () => {
     for (let v = 0; v <= 1; v += 0.01) expect(exposeLevel(v, 0)).toBe(v);
   });
 
-  it('never moves pure black; holds white when brightening and nearly holds it at -1', () => {
+  it('never moves pure black; holds white when brightening and lets it come down gently when darkening', () => {
     for (const ev of [-5, -1, -0.2, 0.2, 1, 5]) expect(exposeLevel(0, ev)).toBe(0);
     for (const ev of [0.2, 1, 5]) expect(exposeLevel(1, ev)).toBeCloseTo(1, 5);
-    expect(Math.log2(exposeLevel(1, -1))).toBeGreaterThan(-0.15);
+    expect(Math.log2(exposeLevel(1, -0.5))).toBeGreaterThan(-0.05);
+    expect(Math.log2(exposeLevel(1, -1))).toBeGreaterThan(-0.6);
     expect(exposeLevel(1, -5)).toBeLessThan(exposeLevel(1, -1));
   });
 
@@ -21,8 +22,8 @@ describe('exposure that holds white', () => {
     const code = (v: number) => 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
     for (let ev = -0.25; ev >= -5; ev -= 0.25) {
       // 8-bit 254 and 255 must stay close after darkening, or blown highlights get a hard edge.
-      // No input level near white may be stretched past about 3.5 output levels.
-      for (let c = 225; c < 255; c++) expect(code(exposeLevel(lin((c + 1) / 2.55), ev)) - code(exposeLevel(lin(c / 2.55), ev))).toBeLessThan(3.5);
+      // No input level near white may be stretched past about two output levels.
+      for (let c = 200; c < 255; c++) expect(code(exposeLevel(lin((c + 1) / 2.55), ev)) - code(exposeLevel(lin(c / 2.55), ev))).toBeLessThan(2.2);
     }
   });
 
@@ -32,8 +33,8 @@ describe('exposure that holds white', () => {
       for (let ev = -0.01; ev >= -5; ev -= 0.01) { const o = exposeLevel(v, ev); expect(o).toBeLessThanOrEqual(prev + 1e-12); prev = o; }
     }
     expect(darkenWhite(0)).toBe(1);
-    expect(darkenWhite(-1)).toBeCloseTo(0.975, 12);
-    expect(darkenWhite(-9)).toBeCloseTo(0.935, 12);
+    expect(darkenWhite(-1)).toBeCloseTo(0.835, 12);
+    expect(darkenWhite(-9)).toBeCloseTo(0.913, 12);
   });
 
   it('moves dark tones about 1.4 stops per stop and tapers toward white', () => {
@@ -43,7 +44,7 @@ describe('exposure that holds white', () => {
     expect(stopsMoved(65, 1)).toBeLessThan(0.95);
     expect(stopsMoved(91, 1)).toBeLessThan(0.3);
     expect(stopsMoved(30, -1)).toBeLessThan(-1.25);
-    expect(stopsMoved(91, -1)).toBeGreaterThan(-0.7);
+    expect(stopsMoved(91, -1)).toBeGreaterThan(-0.9);
   });
 
   it('never pushes anything past white, at any setting', () => {
