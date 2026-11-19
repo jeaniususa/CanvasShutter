@@ -1,4 +1,4 @@
-import type { Params } from '../state';
+import { isDefaultParams, type Params } from '../state';
 import { buildToneLut } from '../tone';
 import { EXPOSURE_GLSL } from '../exposure';
 import { COLOUR_STEP_GLSL } from '../colour-step';
@@ -109,17 +109,41 @@ uniform float u_hl, u_sh;   // highlights and shadows, -100..100 (0 and 0 = loca
 uniform float u_vib, u_sat; // -1..0 for negative settings, 0..COLOR_GAIN for positive
 uniform int u_mode; // 0 = full, 1 = original, 3/4 = clipping after all edits, 5/6 = clipping after levels
 uniform vec3 u_clipMask;                          // which channels the levels clipping view shows
+uniform float u_smooth;     // 1 once the photo has edits: smooth flat areas on the way in, dither on the way out
 ${COMMON}
 ${LOCAL_TONE_GLSL}
 ${COLOUR_STEP_GLSL}
 in vec2 v_uv;
 out vec4 o;
 
+// A small, fixed pseudo-random number per position (0..1).
+float hash12(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+
+// Debanding. A JPEG keeps 256 levels per channel and stores smooth areas such as skies in 8x8
+// blocks that differ by a level or two. Strong edits stretch those steps into visible bands and
+// blocks. Where every nearby sample is within DEBAND_LIMIT of this pixel (a flat area, not
+// texture or an edge), the pixel is replaced by their average, which restores the in-between
+// tones the file rounded away. Three rings (8, 16 and 24 photo pixels), each turned by a
+// per-pixel random angle so no pattern forms.
+const float DEBAND_LIMIT = 3.0 / 255.0;
+vec3 debanded(vec2 uv) {
+  vec3 c = texture(u_img, uv).rgb;
+  vec2 size = vec2(textureSize(u_img, 0));
+  float a = hash12(uv * size) * 6.2831853;
+  for (int i = 1; i <= 3; i++) {
+    vec2 d = vec2(cos(a), sin(a)) * (8.0 * float(i)) / size, e = vec2(-d.y * size.y, d.x * size.x) / size; // d turned 90 degrees in photo pixels
+    vec3 s1 = texture(u_img, uv + d).rgb, s2 = texture(u_img, uv - d).rgb, s3 = texture(u_img, uv + e).rgb, s4 = texture(u_img, uv - e).rgb;
+    vec3 far = max(max(abs(s1 - c), abs(s2 - c)), max(abs(s3 - c), abs(s4 - c)));
+    if (max(far.r, max(far.g, far.b)) < DEBAND_LIMIT) c = (s1 + s2 + s3 + s4) * 0.25;
+  }
+  return c;
+}
+
 
 void main() {
   vec4 t = texture(u_img, v_uv);
   if (u_mode == 1) { o = vec4(t.rgb, 1.0); return; }
-  vec3 lv = levels(t.rgb);
+  vec3 lv = levels(u_smooth > 0.0 ? debanded(v_uv) : t.rgb);
   // Levels clipping views: black with only clipped-to-white channels showing, or white with
   // clipped-to-black channels removed.
   if (u_mode == 5) { o = vec4(step(vec3(254.5 / 255.0), lv) * u_clipMask, 1.0); return; }
@@ -149,6 +173,9 @@ void main() {
   c = clamp(c, 0.0, 1.0);
   // Clipping views: black with only the channels that have hit pure white showing,
   // or white with the channels that have hit pure black removed.
+  // Dithering: about one level of fine noise before the result is rounded to 8 bits, so smooth
+  // gradients do not turn back into steps. Not in the clipping views, which must stay exact.
+  if (u_smooth > 0.0 && u_mode == 0) c = clamp(c + (hash12(gl_FragCoord.xy) + hash12(gl_FragCoord.xy + 71.3) - 1.0) / 255.0, 0.0, 1.0);
   if (u_mode == 3) c = step(vec3(254.5 / 255.0), c);
   if (u_mode == 4) c = vec3(1.0) - step(c, vec3(0.5 / 255.0));
   o = vec4(c, 1.0);
@@ -194,7 +221,7 @@ export class Pipeline {
     this.maskProg = this.link(VERT, MASK_FRAG(head));
     this.blurProg = this.link(VERT, BLUR_FRAG(head));
     const shared = ['u_ev', 'u_temp', 'u_tint', 'u_lvMaster', 'u_lvBlack', 'u_lvWhite', 'u_lvInvGamma'];
-    for (const n of [...shared, 'u_img', 'u_tone', 'u_mask', 'u_hl', 'u_sh', 'u_vib', 'u_sat', 'u_mode', 'u_clipMask']) this.u[n] = gl.getUniformLocation(this.prog, n);
+    for (const n of [...shared, 'u_img', 'u_tone', 'u_mask', 'u_hl', 'u_sh', 'u_vib', 'u_sat', 'u_mode', 'u_clipMask', 'u_smooth']) this.u[n] = gl.getUniformLocation(this.prog, n);
     for (const n of [...shared, 'u_img']) this.um[n] = gl.getUniformLocation(this.maskProg, n);
     for (const n of ['u_src', 'u_dir', 'u_sigma']) this.ub[n] = gl.getUniformLocation(this.blurProg, n);
     this.img = this.texture(gl.LINEAR);
@@ -344,6 +371,8 @@ export class Pipeline {
     gl.uniform1f(this.u.u_sat, colorAmount(p.saturation));
     gl.uniform3f(this.u.u_clipMask, ...clipMask);
     gl.uniform1i(this.u.u_mode, MODES[mode]);
+    // An unedited photo is shown and exported exactly as it is.
+    gl.uniform1f(this.u.u_smooth, isDefaultParams(p) ? 0 : 1);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 

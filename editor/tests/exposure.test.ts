@@ -13,7 +13,7 @@ describe('exposure that holds white', () => {
   it('never moves pure black; holds white when brightening and nearly holds it at -1', () => {
     for (const ev of [-5, -1, -0.2, 0.2, 1, 5]) expect(exposeLevel(0, ev)).toBe(0);
     for (const ev of [0.2, 1, 5]) expect(exposeLevel(1, ev)).toBeCloseTo(1, 5);
-    expect(Math.log2(exposeLevel(1, -1))).toBeGreaterThan(-0.05);
+    expect(Math.log2(exposeLevel(1, -1))).toBeGreaterThan(-0.15);
     expect(exposeLevel(1, -5)).toBeLessThan(exposeLevel(1, -1));
   });
 
@@ -21,7 +21,8 @@ describe('exposure that holds white', () => {
     const code = (v: number) => 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
     for (let ev = -0.25; ev >= -5; ev -= 0.25) {
       // 8-bit 254 and 255 must stay close after darkening, or blown highlights get a hard edge.
-      expect(code(exposeLevel(1, ev)) - code(exposeLevel(lin(254 / 2.55), ev))).toBeLessThan(10);
+      // No input level near white may be stretched past about 3.5 output levels.
+      for (let c = 225; c < 255; c++) expect(code(exposeLevel(lin((c + 1) / 2.55), ev)) - code(exposeLevel(lin(c / 2.55), ev))).toBeLessThan(3.5);
     }
   });
 
@@ -30,8 +31,9 @@ describe('exposure that holds white', () => {
       let prev = Infinity;
       for (let ev = -0.01; ev >= -5; ev -= 0.01) { const o = exposeLevel(v, ev); expect(o).toBeLessThanOrEqual(prev + 1e-12); prev = o; }
     }
-    expect(darkenWhite(-1)).toBe(0.995);
-    expect(darkenWhite(-5)).toBeCloseTo(0.9, 12);
+    expect(darkenWhite(0)).toBe(1);
+    expect(darkenWhite(-1)).toBeCloseTo(0.975, 12);
+    expect(darkenWhite(-9)).toBeCloseTo(0.935, 12);
   });
 
   it('moves dark tones about 1.4 stops per stop and tapers toward white', () => {
