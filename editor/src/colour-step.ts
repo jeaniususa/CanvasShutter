@@ -45,8 +45,12 @@ export const SPAN = 0.85;
 export const FADE_IN = 0.2;
 const FLOOR = 1e-6;
 const LUMA = [0.2126, 0.7152, 0.0722] as const;
-/** Brightest-channel range over which a colour counts as clipped (linear). */
-const CLIP_FROM = 0.95, CLIP_TO = 1.0;
+/**
+ * Brightest-channel range over which a colour counts as clipped (linear; 0.6 is about 8-bit 203).
+ * Deliberately wide: in a photo the clipped area usually ends in a gentle slope from 255 down, and
+ * a narrow range would switch the effect off along a sharp, ragged line at the edge of it.
+ */
+const CLIP_FROM = 0.6, CLIP_TO = 1.0;
 
 /**
  * The colour a pixel should have after its brightness changed from `before` to `after` (both
