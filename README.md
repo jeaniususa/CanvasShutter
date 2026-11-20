@@ -10,6 +10,32 @@ Nothing to install, no account. Click the link, drop in your photos and start ed
 Your photos stay on your computer. Editing happens on your own computer's graphics chip, inside the
 browser; nothing is uploaded to a server.
 
+![CanvasShutter with a sunset photo open: the photo on the left, Levels, Light and Color sliders on the right](docs/images/editor.jpg)
+
+## What it does
+
+<img src="docs/images/exposure.gif" width="300" align="right" alt="Dragging the Exposure slider from +1.5 to -1.5: the sunset brightens and darkens smoothly">
+
+**Exposure that holds white.** Brighten a photo and the darks and midtones come up while the
+brightest parts stay inside white, so a sunset keeps its glow instead of turning into a flat patch.
+
+**Smooth at strong settings.** Skies and glows stay smooth even when pushed hard, without bands or
+blocks.
+
+<br clear="right">
+
+![Before and after: Exposure +1 brightens the sky and sea while the sun keeps its shape](docs/images/exposure.jpg)
+
+**Local Shadows.** Dark areas are lifted according to their surroundings, so the tree and the sea
+gain detail while the bright sky is left alone.
+
+![Before and after: Shadows +100 brings out the tree and the water without lightening the sky](docs/images/shadows.jpg)
+
+**Contrast around the photo's own mid-tone.** Contrast pivots on where the photo's tones actually
+sit, so it adds depth without crushing a bright scene.
+
+![Before and after: Contrast +50 deepens the sky and sea](docs/images/contrast.jpg)
+
 ## Features
 - **Levels** with black, midtone and white handles per channel (RGB, Red, Green, Blue), an Auto
   button, and a clipping view: hold Option/Alt while dragging the white or black handle to see
