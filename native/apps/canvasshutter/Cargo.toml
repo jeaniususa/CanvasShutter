@@ -18,3 +18,6 @@ eframe = { version = "0.31", default-features = false, features = [
 # Same wgpu major version eframe 0.31 uses; listed so its default backends
 # (Metal, DirectX 12, Vulkan) and WGSL support are switched on.
 wgpu = "24"
+cs-io = { path = "../../crates/cs-io" }
+# The system's own Open dialog. On Linux it uses the desktop portal, not GTK.
+rfd = "0.18"

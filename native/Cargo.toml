@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/canvasshutter"]
+members = ["apps/canvasshutter", "crates/cs-io"]
 
 [workspace.package]
 edition = "2024"

@@ -1,4 +1,4 @@
-//! A generated stand-in for a photo until Sprint 2 opens real files.
+//! A generated stand-in, shown until a photo is opened.
 
 pub const SIZE: u32 = 256;
 

@@ -20,6 +20,7 @@ cargo clippy --all-targets -- -D warnings
 
 ## Layout
 - `apps/canvasshutter` – the app: egui window, panels, wgpu drawing (`photo.wgsl`).
+- `crates/cs-io` – reading photos from disk (JPEG, PNG).
 - Add new crates only when a sprint needs them. The planned split is
   `cs-core` (edit recipes, undo; no UI or GPU code), `cs-gpu` (wgpu passes),
   `cs-io` (decode/encode), `cs-catalog` (SQLite library), `cs-ai`.
