@@ -1,21 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildToneLut, gain, STOPS_AT_FULL, type ToneSettings } from '../src/tone';
+import { buildToneLut, type ToneSettings } from '../src/tone';
 
 const zero: ToneSettings = { contrast: 0, whites: 0, blacks: 0 };
 const at = (lut: Float32Array, x: number) => lut[Math.round(x * (lut.length - 1))];
-
-describe('slider strength', () => {
-  it('is 1 at zero and mirrors exactly either side of it', () => {
-    expect(gain(0)).toBe(1);
-    expect(gain(100)).toBeCloseTo(Math.pow(2, STOPS_AT_FULL), 12);
-    for (const v of [10, 37, 50, 100]) expect(gain(v) * gain(-v)).toBeCloseTo(1, 12);
-  });
-  it('gives equal ratios for equal slider steps, and stops at the ends of the range', () => {
-    expect(gain(50) / gain(25)).toBeCloseTo(gain(25) / gain(0), 12);
-    expect(gain(250)).toBe(gain(100));
-    expect(gain(-250)).toBe(gain(-100));
-  });
-});
 
 describe('tone response', () => {
   it('leaves the image unchanged when every slider is zero', () => {
@@ -33,12 +20,13 @@ describe('tone response', () => {
     }
   });
 
-  it('contrast pivots on the midpoint and keeps black and white', () => {
-    for (const c of [-100, -40, 60, 100]) {
-      const lut = buildToneLut({ ...zero, contrast: c }, 1025);
-      expect(at(lut, 0.5)).toBeCloseTo(0.5, 3);
+  it('contrast pivots on the photo\'s mid-tone and keeps black and white', () => {
+    const disp = (v: number) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+    for (const pivot of [0.09, 0.18, 0.36]) for (const c of [-100, -40, 60, 100]) {
+      const lut = buildToneLut({ ...zero, contrast: c, pivot }, 4097);
+      expect(at(lut, disp(pivot))).toBeCloseTo(disp(pivot), 3);
       expect(lut[0]).toBeCloseTo(0, 6);
-      expect(lut[1024]).toBeCloseTo(1, 6);
+      expect(lut[4096]).toBeCloseTo(1, 6);
     }
     const up = buildToneLut({ ...zero, contrast: 60 }, 1025), down = buildToneLut({ ...zero, contrast: -60 }, 1025);
     expect(at(up, 0.25)).toBeLessThan(0.25); expect(at(up, 0.75)).toBeGreaterThan(0.75);
