@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { colourAfter, COLOUR_STEP_GLSL } from '../src/colour-step';
+import { colourAfter, COLOUR_STEP_GLSL, downFor } from '../src/colour-step';
 
 type RGB = [number, number, number];
 const scale = (c: RGB, k: number): RGB => [c[0] * k, c[1] * k, c[2] * k];
@@ -84,6 +84,16 @@ describe('colour near white', () => {
       // darkening was measured on the brightest channel).
       expect(Math.max(...ratios) / Math.min(...ratios)).toBeLessThan(k > 1 ? 1.05 : 1.15);
     }
+  });
+
+  it('darkening enriches greens and blues more than reds and skin, as measured', () => {
+    expect(downFor([0.6, 0.13, 0.13])).toBeLessThan(1);           // red
+    expect(downFor([0.6, 0.35, 0.25])).toBeLessThan(1);           // skin
+    expect(downFor([0.13, 0.6, 0.13])).toBeGreaterThan(4);        // green
+    expect(downFor([0.13, 0.13, 0.6])).toBeGreaterThan(3.5);      // blue
+    const g: RGB = [0.19, 0.89, 0.19], r: RGB = [0.89, 0.19, 0.19];
+    const dg = colourAfter(g, scale(g, 0.5)), dr = colourAfter(r, scale(r, 0.5));
+    expect(spread(dg) / spread(g)).toBeLessThan(spread(dr) / spread(r));
   });
 
   it('is written to GLSL', () => {

@@ -9,13 +9,12 @@
  * This step re-applies the brightness change channel by channel along the same white-holding
  * curve that Exposure uses (src/exposure.ts). The brightest channel lands exactly where the
  * brightness steps put it; the weaker channels move along the curve by the same internal amount,
- * scaled by UP when brightening and DOWN when darkening. The internal amount is measured on the
+ * scaled by UP when brightening and by a hue-dependent strength (DOWN_RGB) when darkening. The internal amount is measured on the
  * colour's luminance, which stays steady where one channel is clipped and noisy. Because the curve flattens toward white,
  * this mostly affects bright colours; dark and mid colours keep their saturation.
  *
- * Darkening is kept moderate (DOWN 1). The measurements show darkened bright colours gaining more
- * colour than this, in a way that depends on hue; a stronger hue-blind version over-coloured
- * smooth skies. It relies on the debanding in the pipeline to keep JPEG skies smooth.
+ * Darkening strength depends on hue (see DOWN_RGB). It relies on the debanding in the pipeline to
+ * keep JPEG skies smooth.
  *
  * The curve is used only up to SPAN of the way to white. Right next to white it is extremely
  * steep, and photos often have a channel sitting at 254-255 (a sunset's red, for example): there,
@@ -30,8 +29,21 @@
 import { S, Sinv } from './exposure';
 
 export const UP = 1.8;
-/** Strength when darkening (0 = keep saturation as it is). */
-export const DOWN = 1.0;
+/**
+ * Strength when darkening, by hue. Measured darkened bright colours gain colour very differently
+ * by hue: reds and skin only a little, greens and blues a lot. The strength is a blend of these
+ * three, weighted by how much each channel stands out (cubed, so the dominant channel decides:
+ * orange and skin stay close to red, yellow sits between red and green).
+ */
+export const DOWN_RGB = [0.5, 4.5, 3.75] as const;
+const HUE_POWER = 3;
+/** Darkening strength for a colour (linear RGB). */
+export function downFor(c: readonly number[]): number {
+  const mx = Math.max(c[0], c[1], c[2]), mn = Math.min(c[0], c[1], c[2]);
+  if (mx - mn < 1e-6) return DOWN_RGB[0];
+  const q = [0, 1, 2].map((i) => ((c[i] - mn) / (mx - mn)) ** HUE_POWER);
+  return (q[0] * DOWN_RGB[0] + q[1] * DOWN_RGB[1] + q[2] * DOWN_RGB[2]) / (q[0] + q[1] + q[2]);
+}
 /**
  * Extra darkening strength for colours whose brightest channel is clipped (at white in the photo).
  * That channel was really brighter than the file says, so the colour was really more saturated;
@@ -67,7 +79,7 @@ export function colourAfter(before: [number, number, number], after: [number, nu
   const y0 = before[0] * LUMA[0] + before[1] * LUMA[1] + before[2] * LUMA[2];
   let k = inner(y0 * m1 / m0) / inner(y0);
   const clipped = Math.min(1, Math.max(0, (m0 - CLIP_FROM) / (CLIP_TO - CLIP_FROM)));
-  k = Math.pow(k, k >= 1 ? UP : DOWN + CLIPPED_DOWN * clipped * clipped * (3 - 2 * clipped));
+  k = Math.pow(k, k >= 1 ? UP : downFor(before) + CLIPPED_DOWN * clipped * clipped * (3 - 2 * clipped));
   const moved = before.map((c) => S(k * inner(c)));
   const top = Math.max(...moved);
   const w = Math.min(1, Math.max(m0, m1) / FADE_IN) ** 2;
@@ -81,12 +93,18 @@ const f = (x: number) => (Number.isInteger(x) ? x.toFixed(1) : String(x));
 
 /** The same step in GLSL (needs curveS / curveSinv from EXPOSURE_GLSL). */
 export const COLOUR_STEP_GLSL = `
+float downFor(vec3 c) {
+  float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
+  if (mx - mn < 1e-6) return ${f(DOWN_RGB[0])};
+  vec3 q = pow((c - vec3(mn)) / (mx - mn), vec3(${f(HUE_POWER)}));
+  return dot(q, vec3(${DOWN_RGB.map(f).join(', ')})) / (q.r + q.g + q.b);
+}
 vec3 colourAfter(vec3 before, vec3 after) {
   float m0 = max(before.r, max(before.g, before.b)), m1 = max(after.r, max(after.g, after.b));
   if (m0 <= 0.0 || m1 <= 0.0 || abs(m1 - m0) < 1e-7) return after;
   float y0 = dot(before, vec3(${LUMA.map(f).join(', ')}));
   float k = curveSinv(min(y0 * m1 / m0, 1.0) * ${f(SPAN)}) / curveSinv(min(y0, 1.0) * ${f(SPAN)});
-  k = pow(k, k >= 1.0 ? ${f(UP)} : ${f(DOWN)} + ${f(CLIPPED_DOWN)} * smoothstep(${f(CLIP_FROM)}, ${f(CLIP_TO)}, m0));
+  k = pow(k, k >= 1.0 ? ${f(UP)} : downFor(before) + ${f(CLIPPED_DOWN)} * smoothstep(${f(CLIP_FROM)}, ${f(CLIP_TO)}, m0));
   vec3 b = min(before, vec3(1.0)) * ${f(SPAN)};
   vec3 moved = vec3(curveS(k * curveSinv(b.r)), curveS(k * curveSinv(b.g)), curveS(k * curveSinv(b.b)));
   float top = max(moved.r, max(moved.g, moved.b));
