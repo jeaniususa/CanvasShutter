@@ -1,5 +1,6 @@
 import { isDefaultParams, type Params } from '../state';
 import { buildToneLut } from '../tone';
+import { pivotForPixels, PIVOT_DEFAULT } from '../contrast';
 import { EXPOSURE_GLSL } from '../exposure';
 import { COLOUR_STEP_GLSL } from '../colour-step';
 import { LOCAL_TONE_GLSL, SURROUND_SIGMA, FLOOR_STOPS } from '../local-tone';
@@ -238,6 +239,8 @@ export class Pipeline {
   private ub: Record<string, WebGLUniformLocation | null> = {};
   private tone: WebGLTexture;
   private toneKey = '';
+  /** Contrast pivot for the current photo (its own mid-tone), measured once when it loads. */
+  private pivot = PIVOT_DEFAULT;
   /** The photo shrunk to the brightness map's size, and the map itself (two buffers for the blur). */
   private small: WebGLTexture;
   private mask: [WebGLTexture, WebGLTexture];
@@ -324,6 +327,7 @@ export class Pipeline {
     const ctx = c.getContext('2d')!;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(src, 0, 0, c.width, c.height);
+    this.pivot = pivotForPixels(ctx.getImageData(0, 0, c.width, c.height).data);
     gl.bindTexture(gl.TEXTURE_2D, this.small);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
     const [internal, format, type] = this.maskFormat;
@@ -400,12 +404,12 @@ export class Pipeline {
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.useProgram(this.prog);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.img); gl.uniform1i(this.u.u_img, 0);
-    // Contrast, whites and blacks are baked into one table, rebuilt only when one of them changes.
-    const toneKey = `${p.contrast},${p.whites},${p.blacks}`;
+    // Contrast, whites and blacks are baked into one table, rebuilt only when one of them (or the photo) changes.
+    const toneKey = `${p.contrast},${p.whites},${p.blacks},${this.pivot}`;
     gl.activeTexture(gl.TEXTURE1); // select the tone slot first, so the upload cannot land on another texture's slot
     if (toneKey !== this.toneKey) {
       gl.bindTexture(gl.TEXTURE_2D, this.tone);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, TONE_SIZE, 1, 0, gl.RED, gl.FLOAT, buildToneLut({ contrast: p.contrast, whites: p.whites, blacks: p.blacks }, TONE_SIZE));
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, TONE_SIZE, 1, 0, gl.RED, gl.FLOAT, buildToneLut({ contrast: p.contrast, whites: p.whites, blacks: p.blacks, pivot: this.pivot }, TONE_SIZE));
       this.toneKey = toneKey;
     }
     gl.bindTexture(gl.TEXTURE_2D, this.tone); gl.uniform1i(this.u.u_tone, 1);

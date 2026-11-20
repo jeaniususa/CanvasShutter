@@ -18,8 +18,10 @@ browser; nothing is uploaded to a server.
   it lifts the darks and midtones without blowing out the brights, and bright colours soften
   toward white the way real light does. Highlights and Shadows are
   local: each part of the photo is adjusted according to how bright its surroundings are, so a
-  dark doorway on a sunny street is lifted more than the same tone in a night scene. Contrast,
-  Whites and Blacks share one tone curve, so they cannot fight each other.
+  dark doorway on a sunny street is lifted more than the same tone in a night scene. Contrast
+  pivots on the photo's own mid-tone (lower for dark photos, higher for bright ones), so it spreads
+  the tones the photo actually has. Contrast, Whites and Blacks share one tone curve, so they cannot
+  fight each other.
 - **Color**: Temp, Tint, Vibrance, Saturation.
 - **Photo library**: add many photos at once; each keeps its own adjustments, saved automatically
   in the browser. A filmstrip switches between them.
