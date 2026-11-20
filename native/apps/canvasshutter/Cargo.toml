@@ -1,0 +1,20 @@
+[package]
+name = "canvasshutter"
+version = "0.0.1"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+# Pinned to 0.31: the Sprint 1 code was written against this version's API.
+# Moving to the newest egui is its own backlog story.
+eframe = { version = "0.31", default-features = false, features = [
+    "accesskit",
+    "default_fonts",
+    "wgpu",
+    "wayland",
+    "x11",
+] }
+# Same wgpu major version eframe 0.31 uses; listed so its default backends
+# (Metal, DirectX 12, Vulkan) and WGSL support are switched on.
+wgpu = "24"

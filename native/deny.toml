@@ -1,0 +1,24 @@
+# cargo-deny licence policy. The app is MIT, so every dependency must be
+# under a permissive licence. GPL is never allowed. LGPL (RAW and HEIC
+# decoders) will be allowed later only as a per-crate exception behind a
+# Cargo feature, with a licence notice in the app.
+
+[licenses]
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Unicode-3.0",
+    "MPL-2.0",
+    # Fonts bundled by egui
+    "OFL-1.1",
+    "LicenseRef-UFL-1.0",
+]
+confidence-threshold = 0.9
